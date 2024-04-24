@@ -3,10 +3,9 @@ from math import log2
 import torch
 from torch import nn
 import torch.nn.functional as F
-from torch_optimizer import DiffGrad
 
-from CStyleGAN2_pytorch.misc import EMA, set_requires_grad
-from CStyleGAN2_pytorch.config import EPSILON, LATENT_DIM, STYLE_DEPTH, NETWORK_CAPACITY, LEARNING_RATE, CHANNELS, \
+from misc import EMA, set_requires_grad
+from config import EPSILON, LATENT_DIM, STYLE_DEPTH, NETWORK_CAPACITY, LEARNING_RATE, CHANNELS, \
     CONDITION_ON_MAPPER, USE_BIASES, LABEL_EPSILON
 
 
@@ -35,8 +34,8 @@ class StyleGAN2(nn.Module):
         set_requires_grad(self.GE, False)
 
         generator_params = list(self.G.parameters()) + list(self.S.parameters())
-        self.G_opt = DiffGrad(generator_params, lr=self.lr, betas=(0.5, 0.9))
-        self.D_opt = DiffGrad(self.D.parameters(), lr=self.lr, betas=(0.5, 0.9))
+        self.G_opt = torch.optim.Adam(generator_params, lr=self.lr, betas=(0.5, 0.9))
+        self.D_opt = torch.optim.Adam(self.D.parameters(), lr=self.lr, betas=(0.5, 0.9))
 
         self.use_biases = use_biases
         self._init_weights()

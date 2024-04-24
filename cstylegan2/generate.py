@@ -1,7 +1,7 @@
 import os
 import json
 import fire
-from CStyleGAN2_pytorch.trainer import Trainer
+from trainer import Trainer
 import torchvision
 
 root = 'models'

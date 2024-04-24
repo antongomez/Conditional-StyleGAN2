@@ -1,0 +1,10 @@
+# Ignore datasets and results of training and evaluation
+data
+results
+models
+logs*
+
+*pycache*
+
+# Ignore scripts to generate datasets
+genData*

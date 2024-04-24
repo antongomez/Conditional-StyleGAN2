@@ -10,12 +10,12 @@ import torch.nn.functional as F
 
 import torchvision
 
-from CStyleGAN2_pytorch.dataset import cycle, Dataset
-from CStyleGAN2_pytorch.StyleGAN2 import StyleGAN2
-from CStyleGAN2_pytorch.misc import gradient_penalty, image_noise, noise_list, mixed_list, latent_to_w, \
+from dataset import cycle, Dataset
+from StyleGAN2 import StyleGAN2
+from misc import gradient_penalty, image_noise, noise_list, mixed_list, latent_to_w, \
     evaluate_in_chunks, styles_def_to_tensor, EMA
 
-from CStyleGAN2_pytorch.config import RESULTS_DIR, MODELS_DIR, EPSILON, LOG_FILENAME, GPU_BATCH_SIZE, LEARNING_RATE, \
+from config import RESULTS_DIR, MODELS_DIR, EPSILON, LOG_FILENAME, GPU_BATCH_SIZE, LEARNING_RATE, \
     PATH_LENGTH_REGULIZER_FREQUENCY, HOMOGENEOUS_LATENT_SPACE, USE_DIVERSITY_LOSS, SAVE_EVERY, EVALUATE_EVERY, CHANNELS, \
     CONDITION_ON_MAPPER, MIXED_PROBABILITY, GRADIENT_ACCUMULATE_EVERY, MOVING_AVERAGE_START, MOVING_AVERAGE_PERIOD, \
     USE_BIASES, LABEL_EPSILON, LATENT_DIM, NETWORK_CAPACITY
@@ -56,7 +56,7 @@ class Trainer():
         self.moving_average_start = moving_average_start
         self.moving_average_period = moving_average_period
 
-        self.dataset = Dataset(folder, image_size)
+        self.dataset = Dataset(folder, image_size, channels)
         self.loader = cycle(data.DataLoader(self.dataset, num_workers=0, batch_size=batch_size,
                                             drop_last=True, shuffle=False, pin_memory=False))
         self.gradient_accumulate_every = gradient_accumulate_every

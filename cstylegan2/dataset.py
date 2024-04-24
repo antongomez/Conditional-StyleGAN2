@@ -9,7 +9,7 @@ from torchvision import transforms
 
 from PIL import Image
 
-from CStyleGAN2_pytorch.config import EXTS
+from config import EXTS
 
 
 def cycle(iterable):
@@ -26,7 +26,7 @@ class Dataset(data.Dataset):
     The Dataset object is used to read files from a given folder and generate both the labels and the tensor.
     """
 
-    def __init__(self, folder, image_size):
+    def __init__(self, folder, image_size, channels):
         """
         Initialize the Dataset.
 
@@ -38,6 +38,7 @@ class Dataset(data.Dataset):
         super().__init__()
         self.folder = folder
         self.image_size = image_size
+        self.channels = channels
 
         self.labels = [subfolder for subfolder in os.listdir(folder) if os.path.isdir(os.path.join(folder, subfolder))]
         if not self.labels:
@@ -52,8 +53,17 @@ class Dataset(data.Dataset):
         self.transform = transforms.Compose([
             #transforms.RandomHorizontalFlip(),
             transforms.Resize(image_size),
+            self._conditional_grayscale,
             transforms.ToTensor()
         ])
+
+    def _conditional_grayscale(self, image): # I made this
+        """
+        Convert the image to grayscale if it has only one channel.
+        """
+        if image.mode == 'RGB' and self.channels == 1:
+            return image.convert('L')  # Convertir a escala de grises
+        return image
 
     def __len__(self):
         return self.length
