@@ -3,6 +3,7 @@ data
 results
 models
 logs*
+val*
 
 *pycache*
 

@@ -6,12 +6,12 @@ from pathlib import Path
 
 from trainer import Trainer
 
-from config import FOLDER, NAME, NEW, LOAD_FROM, GPU, IMAGE_SIZE, CHANNELS, GPU_BATCH_SIZE, \
+from config import FOLDER, FOLDER_VAL, NAME, NEW, LOAD_FROM, GPU, IMAGE_SIZE, CHANNELS, GPU_BATCH_SIZE, \
     GRADIENT_BATCH_SIZE, NETWORK_CAPACITY, NUM_TRAIN_STEPS, LEARNING_RATE, \
     PATH_LENGTH_REGULIZER_FREQUENCY, HOMOGENEOUS_LATENT_SPACE, USE_DIVERSITY_LOSS, SAVE_EVERY, \
     EVALUATE_EVERY, CONDITION_ON_MAPPER, MODELS_DIR, USE_BIASES, LABEL_EPSILON, LATENT_DIM
 
-def train_from_folder(folder=FOLDER, name=NAME, new=NEW, load_from=LOAD_FROM, image_size=IMAGE_SIZE,
+def train_from_folder(folder=FOLDER, folder_val=FOLDER_VAL, name=NAME, new=NEW, load_from=LOAD_FROM, image_size=IMAGE_SIZE,
                       gpu_batch_size=GPU_BATCH_SIZE, gradient_batch_size=GRADIENT_BATCH_SIZE,
                       network_capacity=NETWORK_CAPACITY, num_train_steps=NUM_TRAIN_STEPS,
                       learning_rate=LEARNING_RATE, gpu=GPU, channels=CHANNELS,
@@ -82,6 +82,7 @@ def train_from_folder(folder=FOLDER, name=NAME, new=NEW, load_from=LOAD_FROM, im
     else:
         config = {'name': name,
                   'folder': folder,
+                  'folder_val': folder_val,
                   'batch_size': gpu_batch_size,
                   'gradient_accumulate_every': gradient_accumulate_every,
                   'image_size': image_size,
@@ -106,6 +107,8 @@ def train_from_folder(folder=FOLDER, name=NAME, new=NEW, load_from=LOAD_FROM, im
         model.clear()
     with open(json_path, 'w') as file:
         json.dump(config, file, indent=4, sort_keys=True)
+
+    print(f"We are going to loop the dataset: {num_train_steps * evaluate_every / gradient_batch_size} times.")
 
     for batch_id in tqdm(range(num_train_steps - model.steps), ncols=60):
         model.train()

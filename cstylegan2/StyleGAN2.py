@@ -142,8 +142,9 @@ class Discriminator(nn.Module):
         x = self.blocks(x)
         x = x.reshape(b, -1)
         x = self.to_logit(x)
+        probs = x.detach().clone()
         x = torch.sum(x * labels, axis=1)
-        return x.squeeze()
+        return x.squeeze(), probs
 
 
 class GeneratorBlock(nn.Module):
