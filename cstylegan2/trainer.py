@@ -38,6 +38,7 @@ class Trainer():
         self.lr = lr
         self.mixed_prob = mixed_prob
         self.steps = 0
+        self.epochs = 0
         self.save_every = save_every
         self.evaluate_every = evaluate_every
         self.val_size = val_size
@@ -52,11 +53,11 @@ class Trainer():
         data_manager = DatasetManager(folder, train=True, val_size=val_size)
 
         self.dataset = data_manager.get_train_set()
-        self.loader = cycle(data.DataLoader(self.dataset, num_workers=0, batch_size=batch_size,
-                                            drop_last=True, shuffle=False, pin_memory=False))
+        self.loader = data.DataLoader(self.dataset, num_workers=0, batch_size=batch_size,
+                                            drop_last=True, shuffle=True, pin_memory=False)
         self.dataset_val = data_manager.get_validation_set()
-        self.loader_val = cycle(data.DataLoader(self.dataset, num_workers=0, batch_size=batch_size,
-                                            drop_last=True, shuffle=False, pin_memory=False))
+        self.loader_val = data.DataLoader(self.dataset_val, num_workers=0, batch_size=batch_size,
+                                            drop_last=True, shuffle=True, pin_memory=False)
         
         self.label_dim = self.dataset.label_dim
         if not self.label_dim:
@@ -75,6 +76,7 @@ class Trainer():
         self.last_gp_loss = 0
 
         self.real_cm = np.zeros((self.label_dim, self.label_dim), dtype=int)
+        self.fake_cm = np.zeros((self.label_dim, self.label_dim), dtype=int)
 
         self.path_length_moving_average = EMA(0.99)
         self.path_length_regulizer_frequency = path_length_regulizer_frequency
@@ -93,8 +95,9 @@ class Trainer():
         self.GAN.train()
         if not self.steps:
             self.draw_reals()
-        total_disc_loss = torch.tensor(0.).cuda()
-        total_gen_loss = torch.tensor(0.).cuda()
+
+        # total_disc_loss = torch.tensor(0.).cuda()
+        # total_gen_loss = torch.tensor(0.).cuda()
 
         batch_size = self.batch_size
 
@@ -102,21 +105,19 @@ class Trainer():
         latent_dim = self.GAN.G.latent_dim if self.condition_on_mapper else self.GAN.G.latent_dim - self.label_dim
         num_layers = self.GAN.G.num_layers
 
-        apply_gradient_penalty = self.steps % 4 == 0
-        apply_path_penalty = self.steps % self.path_length_regulizer_frequency == 0
+        for (image_batch, label_batch) in tqdm(self.loader, ncols=60, desc=f'Epoch {self.epochs}'):
 
-        # train discriminator
+            apply_gradient_penalty = self.steps % 4 == 0
+            apply_path_penalty = self.steps % self.path_length_regulizer_frequency == 0
 
-        average_path_length = self.path_length_mean
-        self.GAN.D_opt.zero_grad()
-        inputs = []
-        for i in range(self.gradient_accumulate_every):
-            image_batch, label_batch = next(self.loader)
+            # train discriminator
+            average_path_length = self.path_length_mean
+            self.GAN.D_opt.zero_grad()
 
             get_latents_fn = mixed_list if random() < self.mixed_prob else noise_list
             style = np.array(get_latents_fn(batch_size, num_layers, latent_dim))
             noise = image_noise(batch_size, image_size)
-            inputs.append((style, noise, label_batch))
+            # inputs.append((style, noise, label_batch))
 
             w_space = latent_to_w(self.GAN.S, style, label_batch)
             w_styles = self.styles_def_to_tensor(w_space)
@@ -136,52 +137,45 @@ class Trainer():
                 self.last_gp_loss = gp.clone().detach().item()
                 disc_loss = disc_loss + gp
 
-            disc_loss = disc_loss / self.gradient_accumulate_every
+            # disc_loss = disc_loss / self.gradient_accumulate_every
             disc_loss.backward()
+            # total_disc_loss += divergence.detach().item() / self.gradient_accumulate_every
 
-            total_disc_loss += divergence.detach().item() / self.gradient_accumulate_every
+            self.d_loss = float(divergence.detach().item()) # Do not include gradient penalty in the loss
+            self.GAN.D_opt.step()
 
-            # Calculate accuracy on train with fake
-            predicted_indexes = torch.argmax(fake_probs, dim=1)
+             # Calculate accuracy on train with fake and real images
+            fake_predicted_indexes = torch.argmax(fake_probs, dim=1)
+            real_predicted_indexes = torch.argmax(real_probs, dim=1)
             real_class_batch_indexes = torch.argmax(label_batch, dim=1)
-            for predicted, real_class in zip(predicted_indexes, real_class_batch_indexes):
-                self.real_cm[real_class, predicted] += 1
-            # real images
-            predicted_indexes = torch.argmax(real_probs, dim=1)
-            real_class_batch_indexes = torch.argmax(label_batch, dim=1)
-            for predicted, real_class in zip(predicted_indexes, real_class_batch_indexes):
-                self.real_cm[real_class, predicted] += 1
+            for fake_pred, real_pred, real_class in zip(fake_predicted_indexes, real_predicted_indexes, real_class_batch_indexes):
+                self.fake_cm[real_class, fake_pred] += 1
+                self.real_cm[real_class, real_pred] += 1
 
-        self.d_loss = float(total_disc_loss)
-        self.GAN.D_opt.step()
+            # train generator
+            self.GAN.G_opt.zero_grad()
+            if self.use_diversity_loss:
+                labels = np.array([np.eye(self.label_dim)[np.random.randint(self.label_dim)]
+                                for _ in range(8 * self.label_dim)])
+                self.set_evaluation_parameters(labels_to_evaluate=labels, reset=True)
+                self.evaluate()
+                w = self.last_latents.cpu().data.numpy()
+                w_std = np.mean(np.abs(0.25 - w.std(axis=0)))
+            else:
+                w_std = 0
 
-        # train generator
-        self.GAN.G_opt.zero_grad()
-        if self.use_diversity_loss:
-            labels = np.array([np.eye(self.label_dim)[np.random.randint(self.label_dim)]
-                               for _ in range(8 * self.label_dim)])
-            self.set_evaluation_parameters(labels_to_evaluate=labels, reset=True)
-            self.evaluate()
-            w = self.last_latents.cpu().data.numpy()
-            w_std = np.mean(np.abs(0.25 - w.std(axis=0)))
-        else:
-            w_std = 0
-
-        for i in range(self.gradient_accumulate_every):
-            style, noise, random_label = inputs[i]
-
-            w_space = latent_to_w(self.GAN.S, style, random_label)
+            w_space = latent_to_w(self.GAN.S, style, label_batch)
             w_styles = self.styles_def_to_tensor(w_space)
 
-            generated_images = self.GAN.G(w_styles, noise, random_label)
-            fake_output, _ = self.GAN.D(generated_images, random_label)
+            generated_images = self.GAN.G(w_styles, noise, label_batch)
+            fake_output, _ = self.GAN.D(generated_images, label_batch)
             loss = fake_output.mean()
             generator_loss = loss
 
             if self.homogeneous_latent_space and apply_path_penalty:
                 std = 0.1 / (w_styles.std(dim=0, keepdims=True) + EPSILON)
                 w_styles_2 = w_styles + torch.randn(w_styles.shape).cuda() / (std + EPSILON)
-                path_length_images = self.GAN.G(w_styles_2, noise, random_label)
+                path_length_images = self.GAN.G(w_styles_2, noise, label_batch)
                 path_lengths = ((path_length_images - generated_images) ** 2).mean(dim=(1, 2, 3))
                 average_path_length = np.mean(path_lengths.detach().cpu().numpy())
 
@@ -190,54 +184,56 @@ class Trainer():
                     if not torch.isnan(path_length_loss):
                         generator_loss = generator_loss + path_length_loss
 
-            generator_loss = (generator_loss + w_std) / self.gradient_accumulate_every
+            generator_loss = generator_loss + w_std
             generator_loss.backward()
-            total_gen_loss += loss.detach().item() / self.gradient_accumulate_every
+            self.g_loss = float(loss.detach().item()) # Do not include path length loss in the loss
+            self.GAN.G_opt.step()
 
-        self.g_loss = float(total_gen_loss)
-        self.GAN.G_opt.step()
+            # calculate moving averages
 
-        # calculate moving averages
+            if apply_path_penalty and not np.isnan(average_path_length):
+                self.path_length_mean = self.path_length_moving_average.update_average(self.path_length_mean,
+                                                                                    average_path_length)
 
-        if apply_path_penalty and not np.isnan(average_path_length):
-            self.path_length_mean = self.path_length_moving_average.update_average(self.path_length_mean,
-                                                                                   average_path_length)
+            if self.steps == self.moving_average_start:
+                self.GAN.reset_parameter_averaging()
+            if self.steps % self.moving_average_period == 0 and self.steps > self.moving_average_start:
+                self.GAN.EMA()
 
-        if self.steps == self.moving_average_start:
-            self.GAN.reset_parameter_averaging()
-        if self.steps % self.moving_average_period == 0 and self.steps > self.moving_average_start:
-            self.GAN.EMA()
+            if not self.steps % self.save_every:
+                self.save(self.steps // self.save_every)
+                # Cando gardamos un modelo imprimimos a accuracy co dataset de entrenamento
+                self.print_accuracy(TRAIN_FILENAME, self.steps // self.save_every, np.diag(self.real_cm), self.real_cm.sum(axis=1))
+                self.real_cm = np.zeros_like(self.real_cm) # Reset confusion matrix
+                # Cando gardamos un modelo avaliamos o discriminador co dataset de validacion
+                correct_per_class, total_per_class, _ = self.calculate_accuracy(self.loader_val, show_progress=False, confusion_matrix=False)
+                self.print_accuracy(VAL_FILENAME, self.steps // self.save_every, correct_per_class, total_per_class)
+                # Imprimimos a perda do xerador e do discriminador
+                self.print_log(self.steps // self.save_every)
 
-        if not self.steps % self.save_every:
-            self.save(self.steps // self.save_every)
-            # Imprimimos a accuracu no dataset de treino
-            self.print_accuracy(TRAIN_FILENAME, self.steps // self.save_every, np.diag(self.real_cm), self.real_cm.sum(axis=1))
-            self.real_cm = np.zeros_like(self.real_cm) # Reset confusion matrix
-            # Cando gardamos un modelo avaliamolo co dataset de validacion
-            correct_per_class, total_per_class, _ = self.calculate_accuracy(self.batch_size, self.dataset_val, self.loader_val, batches=self.val_batches)
-            self.print_accuracy(VAL_FILENAME, self.steps // self.save_every, correct_per_class, total_per_class)
+                index_label_batch = torch.argmax(label_batch, dim=1)
+                index_real_pred = torch.argmax(real_probs, dim=1)
+                index_fake_pred = torch.argmax(fake_probs, dim=1)
 
-            index_label_batch = torch.argmax(label_batch, dim=1)
-            index_real_pred = torch.argmax(real_probs, dim=1)
-            index_fake_pred = torch.argmax(fake_probs, dim=1)
+                if self.steps // self.save_every == 0:
+                    with open("./logs/log_probs.txt", 'w') as file:
+                        file.write(f'Imprimimos as probabilidades e as etiquetas\n')
 
-            if self.steps // self.save_every == 0:
-                with open("log_probs.txt", 'w') as file:
-                    file.write(f'Imprimimos as probabilidades e as etiquetas\n')
-
-            with open("log_probs.txt", 'a') as file:
-                file.write(f'\n----------{self.steps // self.save_every}----------\nProbabilidades reais: \n{real_probs}\nEtiquetas preditas: {index_real_pred}\nEtiquetas reais: {index_label_batch}\nProbabilidades falsas: \n{fake_probs}\nEtiquetas preditas: {index_fake_pred}\nEtiquetas reais: {index_label_batch}\n')
+                with open("./logs/log_probs.txt", 'a') as file:
+                    file.write(f'\n----------{self.steps // self.save_every}----------\nProbabilidades reais: \n{real_probs}\nEtiquetas preditas: {index_real_pred}\nEtiquetas reais: {index_label_batch}\nProbabilidades falsas: \n{fake_probs}\nEtiquetas preditas: {index_fake_pred}\nEtiquetas reais: {index_label_batch}\n')
 
 
-        if not self.steps % self.evaluate_every:
-            self.set_evaluation_parameters()
-            generated_images, average_generated_images = self.evaluate()
-            self.save_images(generated_images, f'{self.steps // self.evaluate_every}.png')
-            self.save_images(generated_images, 'fakes.png')
-            self.save_images(average_generated_images, f'{self.steps // self.evaluate_every}-EMA.png')            
+            if not self.steps % self.evaluate_every:
+                self.set_evaluation_parameters()
+                generated_images, average_generated_images = self.evaluate()
+                self.save_images(generated_images, f'{self.steps // self.evaluate_every}.png')
+                self.save_images(generated_images, 'fakes.png')
+                self.save_images(average_generated_images, f'{self.steps // self.evaluate_every}-EMA.png')            
 
-        self.steps += 1
-        self.av = None
+            self.steps += 1
+            self.av = None
+
+        self.epochs += 1
 
     def set_evaluation_parameters(self, latents_to_evaluate=None, noise_to_evaluate=None, labels_to_evaluate=None,
                                   num_rows='labels', num_cols=8, reset=False, total=None):
@@ -328,25 +324,21 @@ class Trainer():
         return probs
 
     
-    def calculate_accuracy(self, batch_size, dataset, loader, batches = None, show_progress = False, confusion_matrix = False):
+    def calculate_accuracy(self, loader, show_progress = False, confusion_matrix = False):
         correct_per_class = np.zeros(self.label_dim, dtype=int)
         total_per_class = np.zeros(self.label_dim, dtype=int)
 
-        if batches is None:
-            batches = len(dataset) // batch_size
-
         if show_progress:
-            iter = tqdm(range(batches), ncols=60)
+            iter = tqdm(loader, ncols=60)
         else:
-            iter = range(batches)
+            iter = loader
 
         if confusion_matrix:
             cm = np.zeros((self.label_dim, self.label_dim), dtype=int)
         else:
             cm = None
 
-        for _ in iter:
-            image_batch, label_batch = next(loader)
+        for image_batch, label_batch in iter:
             output = self.evaluate_discriminator(image_batch, label_batch)
             predicted_indexes = torch.argmax(output, dim=1)
             real_class_batch_indexes = torch.argmax(label_batch, dim=1)
@@ -384,20 +376,22 @@ class Trainer():
         nrows = 8
         reals_filename = str(RESULTS_DIR / self.name / 'reals.png')
         images = [image
-                  for images, labels in [next(self.loader)
+                  for images, labels in [next(cycle(self.loader))
                                          for _ in range(self.label_dim * nrows // self.batch_size)]
                   for image in images]
         images = images[:len(images) // nrows * nrows]
         torchvision.utils.save_image(images, reals_filename, nrow=len(images) // nrows)
         # print(f'\nMosaic of real images created at {reals_filename}\n')
 
-    def print_log(self, batch_id):
-        if batch_id == 0:
-            with open(LOG_FILENAME, 'w') as file:
+    def print_log(self, id, file_name=None):
+        if file_name is None:
+            file_name = LOG_FILENAME
+        if id == 0:
+            with open(file_name, 'w') as file:
                 file.write('G;D;GP;PL\n')
         else:
-            with open(LOG_FILENAME, 'a') as file:
-                file.write(f'{self.g_loss:.2f};{self.d_loss:.2f};{self.last_gp_loss:.2f};{self.path_length_mean:.2f}\n')
+            with open(file_name, 'a') as file:
+                file.write(f'{self.g_loss:.4f};{self.d_loss:.4f};{self.last_gp_loss:.4f};{self.path_length_mean:.4f}\n')
 
     def model_name(self, num, root=MODELS_DIR):
         if isinstance(root, str):

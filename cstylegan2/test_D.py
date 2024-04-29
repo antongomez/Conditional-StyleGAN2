@@ -50,13 +50,13 @@ image_size = config['image_size']
 dataset_manager = DatasetManager(folder, train=False)
 dataset = dataset_manager.get_test_set()
 print(len(dataset))
-loader = cycle(data.DataLoader(dataset, num_workers=0, batch_size=batch_size,
-                                    drop_last=True, shuffle=False, pin_memory=False))
+loader = data.DataLoader(dataset, num_workers=0, batch_size=batch_size,
+                                    drop_last=True, shuffle=True, pin_memory=False)
 
 model = Trainer(**config)
 model.load(-1, root=root)
 
-correct_per_class, total_per_class, confusion_matrix = model.calculate_accuracy(batch_size, dataset, loader, show_progress=True, confusion_matrix=True)
+correct_per_class, total_per_class, confusion_matrix = model.calculate_accuracy(loader, show_progress=True, confusion_matrix=True)
 
 # Imprimimos a accuracy por clase
 for i, (correct, total) in enumerate(zip(correct_per_class, total_per_class)):
