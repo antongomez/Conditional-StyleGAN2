@@ -6,12 +6,12 @@ from pathlib import Path
 
 from trainer import Trainer
 
-from config import FOLDER, FOLDER_VAL, NAME, NEW, LOAD_FROM, GPU, IMAGE_SIZE, CHANNELS, GPU_BATCH_SIZE, \
-    GRADIENT_BATCH_SIZE, NETWORK_CAPACITY, NUM_TRAIN_STEPS, LEARNING_RATE, \
-    PATH_LENGTH_REGULIZER_FREQUENCY, HOMOGENEOUS_LATENT_SPACE, USE_DIVERSITY_LOSS, SAVE_EVERY, \
-    EVALUATE_EVERY, CONDITION_ON_MAPPER, MODELS_DIR, USE_BIASES, LABEL_EPSILON, LATENT_DIM
+from config import FOLDER, NAME, NEW, LOAD_FROM, GPU, IMAGE_SIZE, CHANNELS, GPU_BATCH_SIZE, \
+    GRADIENT_BATCH_SIZE, NETWORK_CAPACITY, NUM_TRAIN_STEPS, LEARNING_RATE,PATH_LENGTH_REGULIZER_FREQUENCY, \
+    HOMOGENEOUS_LATENT_SPACE, USE_DIVERSITY_LOSS, SAVE_EVERY,EVALUATE_EVERY, \
+    VAL_SIZE, CONDITION_ON_MAPPER, MODELS_DIR, USE_BIASES, LABEL_EPSILON, LATENT_DIM
 
-def train_from_folder(folder=FOLDER, folder_val=FOLDER_VAL, name=NAME, new=NEW, load_from=LOAD_FROM, image_size=IMAGE_SIZE,
+def train_from_folder(folder=FOLDER, name=NAME, new=NEW, load_from=LOAD_FROM, image_size=IMAGE_SIZE,
                       gpu_batch_size=GPU_BATCH_SIZE, gradient_batch_size=GRADIENT_BATCH_SIZE,
                       network_capacity=NETWORK_CAPACITY, num_train_steps=NUM_TRAIN_STEPS,
                       learning_rate=LEARNING_RATE, gpu=GPU, channels=CHANNELS,
@@ -20,6 +20,7 @@ def train_from_folder(folder=FOLDER, folder_val=FOLDER_VAL, name=NAME, new=NEW, 
                       use_diversity_loss=USE_DIVERSITY_LOSS,
                       save_every=SAVE_EVERY,
                       evaluate_every=EVALUATE_EVERY,
+                      val_size=VAL_SIZE,
                       condition_on_mapper=CONDITION_ON_MAPPER,
                       use_biases=USE_BIASES,
                       label_epsilon=LABEL_EPSILON,
@@ -82,7 +83,6 @@ def train_from_folder(folder=FOLDER, folder_val=FOLDER_VAL, name=NAME, new=NEW, 
     else:
         config = {'name': name,
                   'folder': folder,
-                  'folder_val': folder_val,
                   'batch_size': gpu_batch_size,
                   'gradient_accumulate_every': gradient_accumulate_every,
                   'image_size': image_size,
@@ -94,6 +94,7 @@ def train_from_folder(folder=FOLDER, folder_val=FOLDER_VAL, name=NAME, new=NEW, 
                   'use_diversity_loss': use_diversity_loss,
                   'save_every': save_every,
                   'evaluate_every': evaluate_every,
+                  'val_size': val_size,
                   'condition_on_mapper': condition_on_mapper,
                   'use_biases': use_biases,
                   'label_epsilon': label_epsilon,
@@ -108,8 +109,7 @@ def train_from_folder(folder=FOLDER, folder_val=FOLDER_VAL, name=NAME, new=NEW, 
     with open(json_path, 'w') as file:
         json.dump(config, file, indent=4, sort_keys=True)
 
-    print(f"We are going to loop the dataset: {num_train_steps * evaluate_every / gradient_batch_size} times.")
-
+    print(f"We are going to loop the dataset: {round(num_train_steps * gradient_accumulate_every * gpu_batch_size / len(model.dataset), 4)} times.")
     for batch_id in tqdm(range(num_train_steps - model.steps), ncols=60):
         model.train()
         if batch_id % 50 == 0:

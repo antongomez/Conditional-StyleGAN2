@@ -2,7 +2,7 @@ import os
 from random import random
 from shutil import rmtree
 from pathlib import Path
-import numpy as np
+from tqdm import tqdm
 
 import torch
 from torch.utils import data
@@ -10,30 +10,55 @@ import torch.nn.functional as F
 
 import torchvision
 
-from dataset import cycle, Dataset
+from dataset import cycle, DatasetManager
 from StyleGAN2 import StyleGAN2
+import numpy as np
 from misc import gradient_penalty, image_noise, noise_list, mixed_list, latent_to_w, \
     evaluate_in_chunks, styles_def_to_tensor, EMA
 
-from config import RESULTS_DIR, MODELS_DIR, EPSILON, VAL_FILENAME, LOG_FILENAME, GPU_BATCH_SIZE, LEARNING_RATE, \
-    PATH_LENGTH_REGULIZER_FREQUENCY, HOMOGENEOUS_LATENT_SPACE, USE_DIVERSITY_LOSS, SAVE_EVERY, EVALUATE_EVERY, CHANNELS, \
-    CONDITION_ON_MAPPER, MIXED_PROBABILITY, GRADIENT_ACCUMULATE_EVERY, MOVING_AVERAGE_START, MOVING_AVERAGE_PERIOD, \
-    USE_BIASES, LABEL_EPSILON, LATENT_DIM, NETWORK_CAPACITY
+from config import RESULTS_DIR, MODELS_DIR, EPSILON, VAL_FILENAME, TRAIN_FILENAME, LOG_FILENAME, GPU_BATCH_SIZE, LEARNING_RATE, \
+    PATH_LENGTH_REGULIZER_FREQUENCY, HOMOGENEOUS_LATENT_SPACE, USE_DIVERSITY_LOSS, SAVE_EVERY, EVALUATE_EVERY, \
+    VAL_SIZE, CHANNELS, CONDITION_ON_MAPPER, MIXED_PROBABILITY, GRADIENT_ACCUMULATE_EVERY, MOVING_AVERAGE_START, \
+    MOVING_AVERAGE_PERIOD, USE_BIASES, LABEL_EPSILON, LATENT_DIM, NETWORK_CAPACITY
 
 
 class Trainer():
-    def __init__(self, name, folder, folder_val, image_size, batch_size=GPU_BATCH_SIZE, mixed_prob=MIXED_PROBABILITY,
+    def __init__(self, name, folder, image_size, batch_size=GPU_BATCH_SIZE, mixed_prob=MIXED_PROBABILITY,
                  lr=LEARNING_RATE, channels=CHANNELS, path_length_regulizer_frequency=PATH_LENGTH_REGULIZER_FREQUENCY,
                  homogeneous_latent_space=HOMOGENEOUS_LATENT_SPACE, use_diversity_loss=USE_DIVERSITY_LOSS,
-                 save_every=SAVE_EVERY, evaluate_every=EVALUATE_EVERY, condition_on_mapper=CONDITION_ON_MAPPER,
-                 gradient_accumulate_every=GRADIENT_ACCUMULATE_EVERY, moving_average_start=MOVING_AVERAGE_START,
+                 save_every=SAVE_EVERY, evaluate_every=EVALUATE_EVERY, val_size=VAL_SIZE, 
+                 condition_on_mapper=CONDITION_ON_MAPPER, gradient_accumulate_every=GRADIENT_ACCUMULATE_EVERY, moving_average_start=MOVING_AVERAGE_START,
                  moving_average_period=MOVING_AVERAGE_PERIOD, use_biases=USE_BIASES, label_epsilon=LABEL_EPSILON,
                  latent_dim=LATENT_DIM, network_capacity=NETWORK_CAPACITY,
                  *args, **kwargs):
         self.condition_on_mapper = condition_on_mapper
         self.folder = folder
-        self.label_dim = len([subfolder for subfolder in os.listdir(folder)
-                              if os.path.isdir(os.path.join(folder, subfolder))])
+
+        self.batch_size = batch_size
+        self.lr = lr
+        self.mixed_prob = mixed_prob
+        self.steps = 0
+        self.save_every = save_every
+        self.evaluate_every = evaluate_every
+        self.val_size = val_size
+        self.val_batches = val_size // batch_size
+
+        self.av = None
+        self.path_length_mean = 0
+        self.moving_average_start = moving_average_start
+        self.moving_average_period = moving_average_period
+        self.gradient_accumulate_every = gradient_accumulate_every
+
+        data_manager = DatasetManager(folder, train=True, val_size=val_size)
+
+        self.dataset = data_manager.get_train_set()
+        self.loader = cycle(data.DataLoader(self.dataset, num_workers=0, batch_size=batch_size,
+                                            drop_last=True, shuffle=False, pin_memory=False))
+        self.dataset_val = data_manager.get_validation_set()
+        self.loader_val = cycle(data.DataLoader(self.dataset, num_workers=0, batch_size=batch_size,
+                                            drop_last=True, shuffle=False, pin_memory=False))
+        
+        self.label_dim = self.dataset.label_dim
         if not self.label_dim:
             self.label_dim = 1
 
@@ -44,30 +69,12 @@ class Trainer():
                              *args, **kwargs)
         self.GAN.cuda()
 
-        self.batch_size = batch_size
-        self.lr = lr
-        self.mixed_prob = mixed_prob
-        self.steps = 0
-        self.save_every = save_every
-        self.evaluate_every = evaluate_every
-
-        self.av = None
-        self.path_length_mean = 0
-        self.moving_average_start = moving_average_start
-        self.moving_average_period = moving_average_period
-
-        self.dataset = Dataset(folder, image_size, channels)
-        self.loader = cycle(data.DataLoader(self.dataset, num_workers=0, batch_size=batch_size,
-                                            drop_last=True, shuffle=False, pin_memory=False))
-        self.gradient_accumulate_every = gradient_accumulate_every
-
-        self.dataset_val = Dataset(folder_val, image_size, channels)
-        self.loader_val = cycle(data.DataLoader(self.dataset, num_workers=0, batch_size=batch_size,
-                                            drop_last=True, shuffle=False, pin_memory=False))
 
         self.d_loss = 0
         self.g_loss = 0
         self.last_gp_loss = 0
+
+        self.real_cm = np.zeros((self.label_dim, self.label_dim), dtype=int)
 
         self.path_length_moving_average = EMA(0.99)
         self.path_length_regulizer_frequency = path_length_regulizer_frequency
@@ -115,11 +122,11 @@ class Trainer():
             w_styles = self.styles_def_to_tensor(w_space)
 
             generated_images = self.GAN.G(w_styles, noise, label_batch)
-            fake_output, _ = self.GAN.D(generated_images.clone().detach(), label_batch)
+            fake_output, fake_probs = self.GAN.D(generated_images.clone().detach(), label_batch)
 
             image_batch = image_batch.cuda()
             image_batch.requires_grad_()
-            real_output, _ = self.GAN.D(image_batch, label_batch)
+            real_output, real_probs = self.GAN.D(image_batch, label_batch)
             divergence = (F.relu(1 + real_output) + F.relu(1 - fake_output))
             divergence = divergence.mean()
             disc_loss = divergence
@@ -133,6 +140,17 @@ class Trainer():
             disc_loss.backward()
 
             total_disc_loss += divergence.detach().item() / self.gradient_accumulate_every
+
+            # Calculate accuracy on train with fake
+            predicted_indexes = torch.argmax(fake_probs, dim=1)
+            real_class_batch_indexes = torch.argmax(label_batch, dim=1)
+            for predicted, real_class in zip(predicted_indexes, real_class_batch_indexes):
+                self.real_cm[real_class, predicted] += 1
+            # real images
+            predicted_indexes = torch.argmax(real_probs, dim=1)
+            real_class_batch_indexes = torch.argmax(label_batch, dim=1)
+            for predicted, real_class in zip(predicted_indexes, real_class_batch_indexes):
+                self.real_cm[real_class, predicted] += 1
 
         self.d_loss = float(total_disc_loss)
         self.GAN.D_opt.step()
@@ -192,17 +210,31 @@ class Trainer():
 
         if not self.steps % self.save_every:
             self.save(self.steps // self.save_every)
+            # Imprimimos a accuracu no dataset de treino
+            self.print_accuracy(TRAIN_FILENAME, self.steps // self.save_every, np.diag(self.real_cm), self.real_cm.sum(axis=1))
+            self.real_cm = np.zeros_like(self.real_cm) # Reset confusion matrix
+            # Cando gardamos un modelo avaliamolo co dataset de validacion
+            correct_per_class, total_per_class, _ = self.calculate_accuracy(self.batch_size, self.dataset_val, self.loader_val, batches=self.val_batches)
+            self.print_accuracy(VAL_FILENAME, self.steps // self.save_every, correct_per_class, total_per_class)
+
+            index_label_batch = torch.argmax(label_batch, dim=1)
+            index_real_pred = torch.argmax(real_probs, dim=1)
+            index_fake_pred = torch.argmax(fake_probs, dim=1)
+
+            if self.steps // self.save_every == 0:
+                with open("log_probs.txt", 'w') as file:
+                    file.write(f'Imprimimos as probabilidades e as etiquetas\n')
+
+            with open("log_probs.txt", 'a') as file:
+                file.write(f'\n----------{self.steps // self.save_every}----------\nProbabilidades reais: \n{real_probs}\nEtiquetas preditas: {index_real_pred}\nEtiquetas reais: {index_label_batch}\nProbabilidades falsas: \n{fake_probs}\nEtiquetas preditas: {index_fake_pred}\nEtiquetas reais: {index_label_batch}\n')
+
 
         if not self.steps % self.evaluate_every:
             self.set_evaluation_parameters()
             generated_images, average_generated_images = self.evaluate()
             self.save_images(generated_images, f'{self.steps // self.evaluate_every}.png')
             self.save_images(generated_images, 'fakes.png')
-            self.save_images(average_generated_images, f'{self.steps // self.evaluate_every}-EMA.png')
-
-            # Calculate accuracy on validation set
-            correct_per_class, total_per_class = self.calculate_accuracy_validation_set()
-            self.print_validation_accuracy(self.steps // self.evaluate_every, correct_per_class, total_per_class)
+            self.save_images(average_generated_images, f'{self.steps // self.evaluate_every}-EMA.png')            
 
         self.steps += 1
         self.av = None
@@ -294,29 +326,54 @@ class Trainer():
         self.GAN.eval()
         _, probs = self.GAN.D(image_batch.cuda(), label_batch)
         return probs
+
     
-    def calculate_accuracy_validation_set(self):
+    def calculate_accuracy(self, batch_size, dataset, loader, batches = None, show_progress = False, confusion_matrix = False):
         correct_per_class = np.zeros(self.label_dim, dtype=int)
         total_per_class = np.zeros(self.label_dim, dtype=int)
-        for i in range(self.evaluate_every // 4):
-            image_batch, label_batch = next(self.loader_val)
-            real_output = self.evaluate_discriminator(image_batch, label_batch)
-            predicted = torch.argmax(real_output, dim=1)
-            real_class_batch = torch.argmax(label_batch, dim=1)
-            for i, val in enumerate(real_class_batch):
-                total_per_class[val] += 1
-                correct_per_class[val] += 1 if predicted[i] == val else 0
-        return correct_per_class, total_per_class
-    
-    def print_validation_accuracy(self, step, correct_per_class, total_per_class):
-        if step == 0:
-            with open(VAL_FILENAME, 'w') as file:
-                file.write('Step;Class;Correct/Total;Accuracy\n')
+
+        if batches is None:
+            batches = len(dataset) // batch_size
+
+        if show_progress:
+            iter = tqdm(range(batches), ncols=60)
         else:
-            with open(VAL_FILENAME, 'a') as file:
-                file.write(f'{step};Overall;{sum(correct_per_class)}/{sum(total_per_class)};{sum(correct_per_class)/sum(total_per_class)}%\n')
-                for i in range(len(correct_per_class)):
-                    file.write(f'{step};Class: {i};{correct_per_class[i]}/{total_per_class[i]};{correct_per_class[i]*100/total_per_class[i]}%\n')
+            iter = range(batches)
+
+        if confusion_matrix:
+            cm = np.zeros((self.label_dim, self.label_dim), dtype=int)
+        else:
+            cm = None
+
+        for _ in iter:
+            image_batch, label_batch = next(loader)
+            output = self.evaluate_discriminator(image_batch, label_batch)
+            predicted_indexes = torch.argmax(output, dim=1)
+            real_class_batch_indexes = torch.argmax(label_batch, dim=1)
+
+            for predicted, real_class in zip(predicted_indexes, real_class_batch_indexes):
+                total_per_class[real_class] += 1
+                correct_per_class[real_class] += 1 if predicted == real_class else 0
+                if confusion_matrix:
+                    cm[real_class, predicted] += 1
+
+        return correct_per_class, total_per_class, cm
+    
+    def print_accuracy(self, file, step, correct_per_class, total_per_class):
+        if step == 0:
+            with open(file, 'w') as f:
+                f.write('Model;Class;Correct/Total;Accuracy\n')
+
+        with open(file, 'a') as f:
+            # Overall accuracy
+            correct = sum(correct_per_class)
+            total = sum(total_per_class)
+            ac = round(correct*100/total, 2)
+            f.write(f'{step};Overall;{correct}/{total};{ac}%\n')
+            # Per class accuracy
+            for i in range(len(correct_per_class)):
+                ac = round(correct_per_class[i]*100/total_per_class[i], 2)
+                f.write(f'{step};Class: {i};{correct_per_class[i]}/{total_per_class[i]};{ac}%\n')
 
 
     def save_images(self, generated_images, filename):

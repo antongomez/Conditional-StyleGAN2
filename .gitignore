@@ -3,7 +3,10 @@ data
 results
 models
 logs*
-val*
+*.csv
+*.txt
+*.png
+*.jpg
 
 *pycache*
 

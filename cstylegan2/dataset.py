@@ -1,15 +1,9 @@
-import os
-import glob
-import random
-
-import numpy as np
-import torch
+from torch import tensor
 from torch.utils import data
 from torchvision import transforms
 
-from PIL import Image
-
-from config import EXTS
+from torchvision import datasets
+import torch.nn.functional as F
 
 
 def cycle(iterable):
@@ -20,65 +14,77 @@ def cycle(iterable):
         for i in iterable:
             yield i
 
+class DatasetManager():
+    """
+    The DatasetManager object is used to manage train, validation and test sets.
+    """
+
+    def __init__(self, folder, train=True, val_size=None, download=False):
+
+        if train == False and val_size is not None:
+            raise ValueError("Validation size is only available for train set.")
+        
+        if val_size is not None and val_size <= 0:
+            raise ValueError("Validation size must be a positive integer.")
+
+        transform = transforms.Compose([transforms.ToTensor(), transforms.Normalize((0.5,), (0.5,))])
+        dataset = datasets.MNIST(root=folder, train=train, transform=transform, download=download)
+
+        if train:
+            self.data_test = None
+            if val_size is not None:
+                data_train, data_val = data.random_split(dataset, [len(dataset) - val_size, val_size])
+                self.data_train = Dataset(data_train, dataset.classes)
+                self.data_val = Dataset(data_val, dataset.classes)
+            else:
+                self.data_train = Dataset(dataset, dataset.classes)
+                self.data_val = None
+        else:
+            self.data_train = None
+            self.data_val = None
+            self.data_test = Dataset(dataset, dataset.classes)
+
+    def get_train_set(self):
+        if self.data_train is None:
+            raise ValueError("Train set was not initialized.")
+        return self.data_train
+    
+    def get_validation_set(self):
+        if self.data_val is None:
+            raise ValueError("Validation set was not initialized.")
+        return self.data_val
+    
+    def get_test_set(self):
+        if self.data_test is None:
+            raise ValueError("Test set was not initialized.")
+        return self.data_test
+            
 
 class Dataset(data.Dataset):
     """
     The Dataset object is used to read files from a given folder and generate both the labels and the tensor.
     """
 
-    def __init__(self, folder, image_size, channels):
+    def __init__(self, data, labels):
         """
         Initialize the Dataset.
 
         :param folder: the path to the folder containing either pictures or subfolder with pictures.
         :type folder: str
-        :param image_size: the size of the tensor to output.
-        :type image: int
         """
         super().__init__()
-        self.folder = folder
-        self.image_size = image_size
-        self.channels = channels
-
-        self.labels = [subfolder for subfolder in os.listdir(folder) if os.path.isdir(os.path.join(folder, subfolder))]
-        if not self.labels:
-            self.labels = '.'
-        self.label_number = len(self.labels)
-
-        self.path_keys = [[p for ext in EXTS for p in glob.glob(os.path.join(folder, label, f'*.{ext}'))]
-                          for i, label in enumerate(self.labels)]
-        self.length = sum([len(path_keys) for path_keys in self.path_keys])
-        assert self.length, f"Didn't find any picture inside {folder}"
-
-        self.transform = transforms.Compose([
-            #transforms.RandomHorizontalFlip(),
-            transforms.Resize(image_size),
-            self._conditional_grayscale,
-            transforms.ToTensor()
-        ])
-
-    def _conditional_grayscale(self, image): # I made this
-        """
-        Convert the image to grayscale if it has only one channel.
-        """
-        if image.mode == 'RGB' and self.channels == 1:
-            return image.convert('L')  # Convertir a escala de grises
-        return image
+        
+        self.data = data
+        self.labels = labels
+        self.label_dim = len(self.labels)
 
     def __len__(self):
-        return self.length
+        return len(self.data)
 
     def __getitem__(self, index):
-        label_index = index % self.label_number  # we select one label after another
-        if not (index // self.label_number)%len(self.path_keys[label_index]):
-            random.shuffle(self.path_keys[label_index])
-            
-        path_keys = self.path_keys[label_index]
-            
-        index = (index // self.label_number) % (len(path_keys))
-
-        with Image.open(path_keys[index]) as image_file:
-            img = self.transform(image_file)
-
-        label = torch.from_numpy(np.eye(self.label_number)[label_index]).cuda().float()
-        return img, label
+        image, label_index = self.data[index]
+        # Add padding to make the image 32x32
+        image_padded = F.pad(image, (2, 2, 2, 2), value=-1)
+        # Encode label as one hot encoding vector
+        label = F.one_hot(tensor(label_index), num_classes=self.label_dim).float().cuda()
+        return image_padded, label
