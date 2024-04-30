@@ -36,7 +36,7 @@ def show_confusion_matrix(confusion_matrix, save_folder):
 root = './models'
 name = 'MNIST'
 
-folder = './data/'
+folder = './data'
 
 save_folder = f'./results/{name}'
 

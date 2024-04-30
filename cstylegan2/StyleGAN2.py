@@ -132,7 +132,8 @@ class Discriminator(nn.Module):
             blocks.append(block)
 
         self.blocks = nn.Sequential(*blocks)
-        self.to_logit = nn.Linear(2 * 2 * filters[-1], label_dim)
+        self.to_label = nn.Linear(2 * 2 * filters[-1], label_dim)
+        self.to_real = nn.Linear(2 * 2 * filters[-1], 1)
 
     def forward(self, x, labels):
         labels = labels + self.label_epsilon
@@ -141,10 +142,15 @@ class Discriminator(nn.Module):
         b, *_ = x.shape
         x = self.blocks(x)
         x = x.reshape(b, -1)
-        x = self.to_logit(x)
-        probs = x.detach().clone()
-        x = torch.sum(x * labels, axis=1)
-        return x.squeeze(), probs
+
+        x_label = self.to_label(x)
+        x_label_value = torch.sum(x_label * labels, axis=1) # for generator train
+        x_label_probs = F.softmax(x_label, dim=1) # for discriminator train
+
+        x_type = self.to_real(x)
+        x_type = torch.sigmoid(x_type)
+
+        return x_label_value, x_label_probs, x_type.squeeze()
 
 
 class GeneratorBlock(nn.Module):

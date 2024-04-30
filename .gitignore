@@ -12,3 +12,5 @@ logs*
 
 # Ignore scripts to generate datasets
 genData*
+
+*.md

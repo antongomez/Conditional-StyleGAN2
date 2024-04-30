@@ -110,9 +110,10 @@ def train_from_folder(folder=FOLDER, name=NAME, new=NEW, load_from=LOAD_FROM, im
         json.dump(config, file, indent=4, sort_keys=True)
 
     print(f"Training steps (epochs): {num_train_steps}")
+    model.print_log(0, file_name='./logs/logs_epoch.csv')
     for train_step_id in range(num_train_steps - model.epochs):
         model.train()
-        model.print_log(train_step_id, file_name='./logs/logs_epoch.csv')
+        model.print_log(train_step_id+1, file_name='./logs/logs_epoch.csv')
 
 
 if __name__ == "__main__":
