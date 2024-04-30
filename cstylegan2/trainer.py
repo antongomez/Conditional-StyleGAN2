@@ -19,7 +19,7 @@ from misc import gradient_penalty, image_noise, noise_list, mixed_list, latent_t
 from config import RESULTS_DIR, MODELS_DIR, EPSILON, VAL_FILENAME, TRAIN_FILENAME, LOG_FILENAME, GPU_BATCH_SIZE, LEARNING_RATE, \
     PATH_LENGTH_REGULIZER_FREQUENCY, HOMOGENEOUS_LATENT_SPACE, USE_DIVERSITY_LOSS, SAVE_EVERY, EVALUATE_EVERY, \
     VAL_SIZE, CHANNELS, CONDITION_ON_MAPPER, MIXED_PROBABILITY, GRADIENT_ACCUMULATE_EVERY, MOVING_AVERAGE_START, \
-    MOVING_AVERAGE_PERIOD, USE_BIASES, LABEL_EPSILON, LATENT_DIM, NETWORK_CAPACITY
+    MOVING_AVERAGE_PERIOD, USE_BIASES, LABEL_EPSILON, LATENT_DIM, NETWORK_CAPACITY, LOG_DIR
 
 
 class Trainer():
@@ -203,24 +203,26 @@ class Trainer():
             if not self.steps % self.save_every:
                 self.save(self.steps // self.save_every)
                 # Cando gardamos un modelo imprimimos a accuracy co dataset de entrenamento
-                self.print_accuracy(TRAIN_FILENAME, self.steps // self.save_every, np.diag(self.real_cm), self.real_cm.sum(axis=1))
+                self.print_accuracy(f"{LOG_DIR}/{self.name}/{TRAIN_FILENAME}", self.steps // self.save_every, np.diag(self.real_cm), self.real_cm.sum(axis=1))
                 self.real_cm = np.zeros_like(self.real_cm) # Reset confusion matrix
                 # Cando gardamos un modelo avaliamos o discriminador co dataset de validacion
                 correct_per_class, total_per_class, _ = self.calculate_accuracy(self.loader_val, show_progress=False, confusion_matrix=False)
-                self.print_accuracy(VAL_FILENAME, self.steps // self.save_every, correct_per_class, total_per_class)
+                self.print_accuracy(f"{LOG_DIR}/{self.name}/{VAL_FILENAME}", self.steps // self.save_every, correct_per_class, total_per_class)
                 # Imprimimos a perda do xerador e do discriminador
                 self.print_log(self.steps // self.save_every)
 
-                index_label_batch = torch.argmax(label_batch, dim=1)
-                index_real_pred = torch.argmax(real_probs, dim=1)
-                index_fake_pred = torch.argmax(fake_probs, dim=1)
+                # index_label_batch = torch.argmax(label_batch, dim=1)
+                # index_real_pred = torch.argmax(real_probs, dim=1)
+                # index_fake_pred = torch.argmax(fake_probs, dim=1)
 
-                if self.steps // self.save_every == 0:
-                    with open("./logs/log_probs.txt", 'w') as file:
-                        file.write(f'Imprimimos as probabilidades e as etiquetas\n')
+                # file_name = f"{LOG_DIR}/{self.name}/log_probs.txt"
 
-                with open("./logs/log_probs.txt", 'a') as file:
-                    file.write(f'\n----------{self.steps // self.save_every}----------\nProbabilidades reais: \n{real_probs}\nEtiquetas preditas: {index_real_pred}\nEtiquetas reais: {index_label_batch}\nProbabilidades falsas: \n{fake_probs}\nEtiquetas preditas: {index_fake_pred}\nEtiquetas reais: {index_label_batch}\n')
+                # if self.steps // self.save_every == 0:
+                #     with open(file_name, 'w') as file:
+                #         file.write(f'Imprimimos as probabilidades e as etiquetas\n')
+
+                # with open(file_name, 'a') as file:
+                #     file.write(f'\n----------{self.steps // self.save_every}----------\nProbabilidades reais: \n{real_probs}\nEtiquetas preditas: {index_real_pred}\nEtiquetas reais: {index_label_batch}\nProbabilidades falsas: \n{fake_probs}\nEtiquetas preditas: {index_fake_pred}\nEtiquetas reais: {index_label_batch}\n')
 
 
             if not self.steps % self.evaluate_every:
@@ -385,7 +387,7 @@ class Trainer():
 
     def print_log(self, id, file_name=None):
         if file_name is None:
-            file_name = LOG_FILENAME
+            file_name = f"{LOG_DIR}/{self.name}/{LOG_FILENAME}"
         if id == 0:
             with open(file_name, 'w') as file:
                 file.write('G;D;GP;PL\n')

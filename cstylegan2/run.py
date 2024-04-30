@@ -8,7 +8,7 @@ from trainer import Trainer
 
 from config import FOLDER, NAME, NEW, LOAD_FROM, GPU, IMAGE_SIZE, CHANNELS, GPU_BATCH_SIZE, \
     GRADIENT_BATCH_SIZE, NETWORK_CAPACITY, NUM_TRAIN_STEPS, LEARNING_RATE,PATH_LENGTH_REGULIZER_FREQUENCY, \
-    HOMOGENEOUS_LATENT_SPACE, USE_DIVERSITY_LOSS, SAVE_EVERY,EVALUATE_EVERY, \
+    HOMOGENEOUS_LATENT_SPACE, USE_DIVERSITY_LOSS, SAVE_EVERY,EVALUATE_EVERY, LOG_DIR, \
     VAL_SIZE, CONDITION_ON_MAPPER, MODELS_DIR, USE_BIASES, LABEL_EPSILON, LATENT_DIM
 
 def train_from_folder(folder=FOLDER, name=NAME, new=NEW, load_from=LOAD_FROM, image_size=IMAGE_SIZE,
@@ -109,10 +109,13 @@ def train_from_folder(folder=FOLDER, name=NAME, new=NEW, load_from=LOAD_FROM, im
     with open(json_path, 'w') as file:
         json.dump(config, file, indent=4, sort_keys=True)
 
+    file_name = f"{LOG_DIR}/{name}/logs_epoch.csv"
+
     print(f"Training steps (epochs): {num_train_steps}")
+    model.print_log(0, file_name=file_name)
     for train_step_id in range(num_train_steps - model.epochs):
         model.train()
-        model.print_log(train_step_id, file_name='./logs/logs_epoch.csv')
+        model.print_log(train_step_id+1, file_name=file_name)
 
 
 if __name__ == "__main__":
