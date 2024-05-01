@@ -2,7 +2,9 @@
 data
 results
 models
-logs*
+logs
+graphics
+test
 *.csv
 *.txt
 *.png

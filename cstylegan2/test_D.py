@@ -36,9 +36,11 @@ def show_confusion_matrix(confusion_matrix, save_folder):
 root = './models'
 name = 'MNIST'
 
-folder = './data/'
+folder = './data'
 
-save_folder = f'./results/{name}'
+save_folder = f'./test/{name}/D'
+
+os.makedirs(save_folder, exist_ok=True)
 
 with open(os.path.join(root, name, 'config.json'), 'r') as file:
     config = json.load(file)
@@ -49,7 +51,7 @@ image_size = config['image_size']
 
 dataset_manager = DatasetManager(folder, train=False)
 dataset = dataset_manager.get_test_set()
-print(len(dataset))
+print("Dataset length:", len(dataset))
 loader = data.DataLoader(dataset, num_workers=0, batch_size=batch_size,
                                     drop_last=True, shuffle=True, pin_memory=False)
 
@@ -62,6 +64,6 @@ correct_per_class, total_per_class, confusion_matrix = model.calculate_accuracy(
 for i, (correct, total) in enumerate(zip(correct_per_class, total_per_class)):
     print(f'Class {i}: {correct}/{total} ({correct/total:.2%})')
 # Imprimimos a matriz de confusion en cor
-show_confusion_matrix(confusion_matrix, save_folder='.')
+show_confusion_matrix(confusion_matrix, save_folder=save_folder)
 
 

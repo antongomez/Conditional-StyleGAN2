@@ -10,10 +10,10 @@ from PIL import Image
 root = './models' 
 name = 'MNIST'  
 
-folder = './data/'
+folder = './data'
 
-save_generated = f'./results/{name}/generated'
-save_average_generated = f'./results/{name}/average_generated'
+save_generated = f'./test/{name}/G/generated'
+save_average_generated = f'./test/{name}/G/average_generated'
 
 os.makedirs(save_generated, exist_ok=True)
 os.makedirs(save_average_generated, exist_ok=True)
