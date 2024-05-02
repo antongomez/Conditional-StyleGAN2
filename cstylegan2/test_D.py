@@ -2,10 +2,11 @@ import json
 import os
 
 from trainer import Trainer
-from dataset import cycle, DatasetManager
+from dataset import DatasetManager
 
 from torch.utils import data
 import numpy as np
+import argparse
 
 import matplotlib.pyplot as plt
 
@@ -33,12 +34,19 @@ def show_confusion_matrix(confusion_matrix, save_folder):
           
   plt.savefig(f'{save_folder}/cm.png')
 
+parser = argparse.ArgumentParser()
+parser.add_argument('--name', type=str, help='Name argument')
+
+args = parser.parse_args()
+name = args.name
+
 root = './models'
-name = 'MNIST'
 
 folder = './data'
 
-save_folder = f'./results/{name}'
+save_folder = f'./test/{name}/D'
+
+os.makedirs(save_folder, exist_ok=True)
 
 with open(os.path.join(root, name, 'config.json'), 'r') as file:
     config = json.load(file)
@@ -62,6 +70,6 @@ correct_per_class, total_per_class, confusion_matrix = model.calculate_accuracy(
 for i, (correct, total) in enumerate(zip(correct_per_class, total_per_class)):
     print(f'Class {i}: {correct}/{total} ({correct/total:.2%})')
 # Imprimimos a matriz de confusion en cor
-show_confusion_matrix(confusion_matrix, save_folder='.')
+show_confusion_matrix(confusion_matrix, save_folder=save_folder)
 
 

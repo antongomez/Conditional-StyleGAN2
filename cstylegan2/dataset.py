@@ -29,20 +29,21 @@ class DatasetManager():
 
         transform = transforms.Compose([transforms.ToTensor(), transforms.Normalize((0.5,), (0.5,))])
         dataset = datasets.MNIST(root=folder, train=train, transform=transform, download=download)
+        classes = dataset.classes
 
         if train:
             self.data_test = None
             if val_size is not None:
                 data_train, data_val = data.random_split(dataset, [len(dataset) - val_size, val_size])
-                self.data_train = Dataset(data_train, dataset.classes)
-                self.data_val = Dataset(data_val, dataset.classes)
+                self.data_train = Dataset(data_train, classes)
+                self.data_val = Dataset(data_val, classes)
             else:
-                self.data_train = Dataset(dataset, dataset.classes)
+                self.data_train = Dataset(dataset, classes)
                 self.data_val = None
         else:
             self.data_train = None
             self.data_val = None
-            self.data_test = Dataset(dataset, dataset.classes)
+            self.data_test = Dataset(dataset, classes)
 
     def get_train_set(self):
         if self.data_train is None:

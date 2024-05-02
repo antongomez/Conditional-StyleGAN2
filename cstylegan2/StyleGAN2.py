@@ -11,11 +11,12 @@ from config import EPSILON, LATENT_DIM, STYLE_DEPTH, NETWORK_CAPACITY, LEARNING_
 
 class StyleGAN2(nn.Module):
     def __init__(self, image_size, label_dim, latent_dim=LATENT_DIM, style_depth=STYLE_DEPTH,
-                 network_capacity=NETWORK_CAPACITY, steps=1, lr=LEARNING_RATE, channels=CHANNELS,
+                 network_capacity=NETWORK_CAPACITY, steps=1, lr=LEARNING_RATE, lr_g=LEARNING_RATE, channels=CHANNELS,
                  condition_on_mapper=CONDITION_ON_MAPPER, use_biases=USE_BIASES, label_epsilon=LABEL_EPSILON):
         super().__init__()
         self.condition_on_mapper = condition_on_mapper
         self.lr = lr
+        self.lr_g = lr_g
         self.steps = steps
         self.ema_updater = EMA(0.99)
 
@@ -34,7 +35,7 @@ class StyleGAN2(nn.Module):
         set_requires_grad(self.GE, False)
 
         generator_params = list(self.G.parameters()) + list(self.S.parameters())
-        self.G_opt = torch.optim.Adam(generator_params, lr=self.lr, betas=(0.5, 0.9))
+        self.G_opt = torch.optim.Adam(generator_params, lr=self.lr_g, betas=(0.5, 0.9))
         self.D_opt = torch.optim.Adam(self.D.parameters(), lr=self.lr, betas=(0.5, 0.9))
 
         self.use_biases = use_biases
@@ -144,8 +145,7 @@ class Discriminator(nn.Module):
         x = x.reshape(b, -1)
 
         x_label = self.to_label(x)
-        # x_label_value = torch.sum(x_label * labels, axis=1) # for generator train
-        x_label_probs = F.softmax(x_label, dim=1) # for discriminator train
+        x_label_probs = F.log_softmax(x_label, dim=1)
 
         x_type = self.to_real(x)
         x_type = torch.sigmoid(x_type)

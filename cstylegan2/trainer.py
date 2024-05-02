@@ -24,7 +24,7 @@ from config import RESULTS_DIR, MODELS_DIR, LOG_DIR, EPSILON, VAL_FILENAME, TRAI
 
 class Trainer():
     def __init__(self, name, folder, image_size, batch_size=GPU_BATCH_SIZE, mixed_prob=MIXED_PROBABILITY,
-                 lr=LEARNING_RATE, channels=CHANNELS, path_length_regulizer_frequency=PATH_LENGTH_REGULIZER_FREQUENCY,
+                 lr=LEARNING_RATE, lr_g=LEARNING_RATE, channels=CHANNELS, path_length_regulizer_frequency=PATH_LENGTH_REGULIZER_FREQUENCY,
                  homogeneous_latent_space=HOMOGENEOUS_LATENT_SPACE, use_diversity_loss=USE_DIVERSITY_LOSS,
                  save_every=SAVE_EVERY, evaluate_every=EVALUATE_EVERY, val_size=VAL_SIZE, 
                  condition_on_mapper=CONDITION_ON_MAPPER, gradient_accumulate_every=GRADIENT_ACCUMULATE_EVERY, moving_average_start=MOVING_AVERAGE_START,
@@ -36,6 +36,7 @@ class Trainer():
 
         self.batch_size = batch_size
         self.lr = lr
+        self.lr_g = lr_g
         self.mixed_prob = mixed_prob
         self.steps = 0
         self.epochs = 0
@@ -64,7 +65,7 @@ class Trainer():
             self.label_dim = 1
 
         self.name = name
-        self.GAN = StyleGAN2(lr=lr, image_size=image_size, label_dim=self.label_dim, channels=channels,
+        self.GAN = StyleGAN2(lr=lr, lr_g=lr_g, image_size=image_size, label_dim=self.label_dim, channels=channels,
                              condition_on_mapper=self.condition_on_mapper, label_epsilon=label_epsilon,
                              use_biases=use_biases, latent_dim=latent_dim, network_capacity=network_capacity,
                              *args, **kwargs)
@@ -95,9 +96,6 @@ class Trainer():
         self.GAN.train()
         if not self.steps:
             self.draw_reals()
-
-        # total_disc_loss = torch.tensor(0.).cuda()
-        # total_gen_loss = torch.tensor(0.).cuda()
 
         batch_size = self.batch_size
 
@@ -133,7 +131,7 @@ class Trainer():
             
             # Calculate loss for fake images (type and class)
             fake_type_batch = torch.zeros(batch_size).float().cuda()
-            loss_fake = criterion_class(fake_label, label_batch_index) + criterion_type(fake_type, fake_type_batch)
+            lossD_fake = criterion_class(fake_label, label_batch_index) + criterion_type(fake_type, fake_type_batch)
 
             image_batch = image_batch.cuda()
             image_batch.requires_grad_()
@@ -142,12 +140,9 @@ class Trainer():
 
             # Calculate loss for fake images (type and class)
             real_type_batch = torch.ones(batch_size).float().cuda()
-            loss_real = criterion_class(real_label, label_batch_index) + criterion_type(real_type, real_type_batch)
-            # divergence = (F.relu(1 + real_label) + F.relu(1 - fake_label))
-            # divergence = divergence.mean()
+            lossG_real = criterion_class(real_label, label_batch_index) + criterion_type(real_type, real_type_batch)
 
-            # divergence = (F.relu(1 + loss_real) + F.relu(1 - loss_fake))
-            divergence = loss_real + loss_fake
+            divergence = lossG_real + lossD_fake
             disc_loss = divergence
 
             if apply_gradient_penalty:
@@ -155,14 +150,11 @@ class Trainer():
                 self.last_gp_loss = gp.clone().detach().item()
                 disc_loss = disc_loss + gp
 
-            # disc_loss = disc_loss / self.gradient_accumulate_every
             disc_loss.backward()
-            # total_disc_loss += divergence.detach().item() / self.gradient_accumulate_every
-
             self.d_loss = float(divergence.detach().item()) # Do not include gradient penalty in the loss
             self.GAN.D_opt.step()
 
-             # Calculate accuracy on train with fake and real images
+            # Calculate accuracy on train with fake and real images
             fake_predicted_indexes = torch.argmax(fake_probs, dim=1)
             real_predicted_indexes = torch.argmax(real_probs, dim=1)
             for fake_pred, real_pred, real_class in zip(fake_predicted_indexes, real_predicted_indexes, label_batch_index):
@@ -228,20 +220,6 @@ class Trainer():
                 self.print_accuracy(f"{LOG_DIR}/{self.name}/{VAL_FILENAME}", self.steps // self.save_every, correct_per_class, total_per_class)
                 # Imprimimos a perda do xerador e do discriminador
                 self.print_log(self.steps // self.save_every)
-
-                # index_label_batch = torch.argmax(label_batch, dim=1)
-                # index_real_pred = torch.argmax(real_probs, dim=1)
-                # index_fake_pred = torch.argmax(fake_probs, dim=1)
-
-                # file_name = f"{LOG_DIR}/{NAME}/log_probs.txt"
-
-                # if self.steps // self.save_every == 0:
-                #     with open(file_name, 'w') as file:
-                #         file.write(f'Imprimimos as probabilidades e as etiquetas\n')
-
-                # with open(file_name, 'a') as file:
-                #     file.write(f'\n----------{self.steps // self.save_every}----------\nProbabilidades reais: \n{real_probs}\nEtiquetas preditas: {index_real_pred}\nEtiquetas reais: {index_label_batch}\nProbabilidades falsas: \n{fake_probs}\nEtiquetas preditas: {index_fake_pred}\nEtiquetas reais: {index_label_batch}\n')
-
 
             if not self.steps % self.evaluate_every:
                 self.set_evaluation_parameters()
