@@ -14,7 +14,7 @@ from config import FOLDER, NAME, NEW, LOAD_FROM, GPU, IMAGE_SIZE, CHANNELS, GPU_
 def train_from_folder(folder=FOLDER, name=NAME, new=NEW, load_from=LOAD_FROM, image_size=IMAGE_SIZE,
                       gpu_batch_size=GPU_BATCH_SIZE, gradient_batch_size=GRADIENT_BATCH_SIZE,
                       network_capacity=NETWORK_CAPACITY, num_train_steps=NUM_TRAIN_STEPS,
-                      learning_rate=LEARNING_RATE, gpu=GPU, channels=CHANNELS,
+                      learning_rate=LEARNING_RATE, learning_rate_g=LEARNING_RATE, gpu=GPU, channels=CHANNELS,
                       path_length_regulizer_frequency=PATH_LENGTH_REGULIZER_FREQUENCY,
                       homogeneous_latent_space=HOMOGENEOUS_LATENT_SPACE,
                       use_diversity_loss=USE_DIVERSITY_LOSS,
@@ -88,6 +88,7 @@ def train_from_folder(folder=FOLDER, name=NAME, new=NEW, load_from=LOAD_FROM, im
                   'image_size': image_size,
                   'network_capacity': network_capacity,
                   'lr': learning_rate,
+                  'lr_g': learning_rate_g,
                   'channels': channels,
                   'path_length_regulizer_frequency': path_length_regulizer_frequency,
                   'homogeneous_latent_space': homogeneous_latent_space,
@@ -109,7 +110,8 @@ def train_from_folder(folder=FOLDER, name=NAME, new=NEW, load_from=LOAD_FROM, im
     with open(json_path, 'w') as file:
         json.dump(config, file, indent=4, sort_keys=True)
 
-    file_name = f"{LOG_DIR}/{name}/logs_epoch.csv"
+    
+    file_name = f"{LOG_DIR}/{model.name}/logs_epoch.csv"
 
     print(f"Training steps (epochs): {num_train_steps}")
     model.print_log(0, file_name=file_name)

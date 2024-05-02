@@ -34,6 +34,7 @@ VAL_SIZE = 1024
 NAME = "default"
 CURRENT_DIR = Path('.')
 
+LOG_DIR = CURRENT_DIR / 'logs'
 MODELS_DIR = CURRENT_DIR / 'models'
 RESULTS_DIR = CURRENT_DIR / 'results'
 LOG_DIR = CURRENT_DIR / 'logs'
@@ -41,6 +42,10 @@ LOG_DIR = CURRENT_DIR / 'logs'
 VAL_FILENAME = CURRENT_DIR / 'val.csv'
 TRAIN_FILENAME = CURRENT_DIR / 'train.csv'
 LOG_FILENAME = CURRENT_DIR / 'logs.csv'
+
+LOG_FILENAME = 'logs.csv'
+VAL_FILENAME = 'val.csv'
+TRAIN_FILENAME = 'train.csv'
 
 NEW = True
 LOAD_FROM = -1

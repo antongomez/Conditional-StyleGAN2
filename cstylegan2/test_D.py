@@ -2,10 +2,11 @@ import json
 import os
 
 from trainer import Trainer
-from dataset import cycle, DatasetManager
+from dataset import DatasetManager
 
 from torch.utils import data
 import numpy as np
+import argparse
 
 import matplotlib.pyplot as plt
 
@@ -33,8 +34,13 @@ def show_confusion_matrix(confusion_matrix, save_folder):
           
   plt.savefig(f'{save_folder}/cm.png')
 
+parser = argparse.ArgumentParser()
+parser.add_argument('--name', type=str, help='Name argument')
+
+args = parser.parse_args()
+name = args.name
+
 root = './models'
-name = 'MNIST'
 
 folder = './data'
 

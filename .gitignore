@@ -2,9 +2,9 @@
 data
 results
 models
-logs
 graphics
-test
+logs*
+test*
 *.csv
 *.txt
 *.png

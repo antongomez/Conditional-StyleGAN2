@@ -5,11 +5,15 @@ from trainer import Trainer
 
 import numpy as np
 from PIL import Image
+import argparse
 
+parser = argparse.ArgumentParser()
+parser.add_argument('--name', type=str, help='Name')
+args = parser.parse_args()
 
-root = './models' 
-name = 'MNIST'  
+name = args.name
 
+root = './models'
 folder = './data'
 
 save_generated = f'./test/{name}/G/generated'
@@ -25,8 +29,7 @@ model.load(-1, root=root)  # the first argument is the index of the checkpoint, 
 
 mode = 'L' if config['channels'] == 1 else 'RGB'
 
-# Imos xerar 10 imaxes de cada clase e ver cantas clasifica ben
-labels_to_evaluate = np.array([np.eye(10)[i % 10] for i in range(100)])
+labels_to_evaluate = np.array([np.eye(10)[i % 10] for i in range(50)])
 
 
 model.set_evaluation_parameters(labels_to_evaluate=labels_to_evaluate, reset=True, total=len(labels_to_evaluate))  # you can set the latents, the noise or the labels
