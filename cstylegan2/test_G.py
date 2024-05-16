@@ -1,11 +1,12 @@
 import os
 import json
+import argparse
 
 from trainer import Trainer
 
 import numpy as np
-from PIL import Image
-import argparse
+from torchvision.utils import save_image
+from torch import tensor, index_select
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--name', type=str, help='Name')
@@ -27,27 +28,22 @@ with open(os.path.join(root, name, 'config.json'), 'r') as file:
 model = Trainer(**config)
 model.load(-1, root=root)  # the first argument is the index of the checkpoint, -1 means the last checkpoint
 
-mode = 'L' if config['channels'] == 1 else 'RGB'
+hyperdataset = True if config['channels'] > 4 else False
 
+# 5 images of each class
 labels_to_evaluate = np.array([np.eye(10)[i % 10] for i in range(50)])
 
 
 model.set_evaluation_parameters(labels_to_evaluate=labels_to_evaluate, reset=True, total=len(labels_to_evaluate))  # you can set the latents, the noise or the labels
 generated_images, average_generated_images = model.evaluate()
 
-def save_image(tensor_image, path, mode):
-    tensor_image = tensor_image.cpu()
-    if(mode == "L"):
-        tensor_image = tensor_image.squeeze() # Pillow expects HxW with mode L
-    numpy_image = tensor_image.detach().numpy()
-    numpy_image = (numpy_image * 255).astype(np.uint8)
-    pil_image = Image.fromarray(numpy_image, mode=mode)
-    pil_image.save(path)
+def tensor_index_select(tensor, dim=0, index=tensor([2, 1, 0])):
+    return index_select(tensor, dim=dim, index=index) if hyperdataset else tensor
 
 # Save the images
 os.makedirs('./results', exist_ok=True)
 for i, tensor_image in enumerate(generated_images):
-    save_image(tensor_image, f'{save_generated}/class_{i % 10}_{i}.png', mode)
+    save_image(tensor_index_select(tensor_image.cpu()), f'{save_generated}/class_{i % 10}_{i}.png')
 
 for i, tensor_image in enumerate(average_generated_images):
-    save_image(tensor_image, f'{save_average_generated}/image_{i % 10}_{i}.png', mode)
+    save_image(tensor_index_select(tensor_image.cpu()), f'{save_average_generated}/image_{i % 10}_{i}.png')

@@ -99,7 +99,7 @@ def train_from_folder(folder=FOLDER, name=NAME, new=NEW, load_from=LOAD_FROM, im
                   'condition_on_mapper': condition_on_mapper,
                   'use_biases': use_biases,
                   'label_epsilon': label_epsilon,
-                  'latent_dim': latent_dim
+                  'latent_dim': latent_dim,
                   }
     model = Trainer(**config)
 

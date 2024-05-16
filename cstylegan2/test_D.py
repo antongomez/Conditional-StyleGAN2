@@ -21,7 +21,6 @@ def show_confusion_matrix(confusion_matrix, save_folder):
   plt.xlabel('Predicted label')
   plt.ylabel('True label')
 
-  # Add color bar
   plt.colorbar()
 
   # Add text annotations
@@ -42,7 +41,11 @@ name = args.name
 
 root = './models'
 
-folder = './data'
+dataset_name = name.split("_")[0]
+if dataset_name == 'MNIST':    
+    folder = f'./data'
+else:
+    folder = f'./data/{dataset_name}'
 
 save_folder = f'./test/{name}/D'
 
@@ -55,13 +58,13 @@ batch_size = config['batch_size']
 channels = config['channels']
 image_size = config['image_size']
 
-dataset_manager = DatasetManager(folder, train=False)
+dataset_manager = DatasetManager(folder, train=False, hyperdataset=(True if channels > 4 else False))
 dataset = dataset_manager.get_test_set()
 print("Dataset length:", len(dataset))
 loader = data.DataLoader(dataset, num_workers=0, batch_size=batch_size,
                                     drop_last=True, shuffle=True, pin_memory=False)
 
-model = Trainer(**config)
+model = Trainer(**config, label_dim=dataset.label_dim)
 model.load(-1, root=root)
 
 correct_per_class, total_per_class, confusion_matrix = model.calculate_accuracy(loader, show_progress=True, confusion_matrix=True)

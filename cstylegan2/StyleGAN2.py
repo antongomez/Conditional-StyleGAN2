@@ -145,12 +145,13 @@ class Discriminator(nn.Module):
         x = x.reshape(b, -1)
 
         x_label = self.to_label(x)
+        x_logit = torch.sum(x_label * labels, axis=1)
         x_label_probs = F.log_softmax(x_label, dim=1)
 
         x_type = self.to_real(x)
         x_type = torch.sigmoid(x_type)
 
-        return x_label_probs, x_type.squeeze()
+        return x_label_probs, x_type.squeeze(), x_logit.squeeze()
 
 
 class GeneratorBlock(nn.Module):

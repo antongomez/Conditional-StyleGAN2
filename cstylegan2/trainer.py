@@ -1,4 +1,3 @@
-import os
 from random import random
 from shutil import rmtree
 from pathlib import Path
@@ -29,10 +28,12 @@ class Trainer():
                  save_every=SAVE_EVERY, evaluate_every=EVALUATE_EVERY, val_size=VAL_SIZE, 
                  condition_on_mapper=CONDITION_ON_MAPPER, gradient_accumulate_every=GRADIENT_ACCUMULATE_EVERY, moving_average_start=MOVING_AVERAGE_START,
                  moving_average_period=MOVING_AVERAGE_PERIOD, use_biases=USE_BIASES, label_epsilon=LABEL_EPSILON,
-                 latent_dim=LATENT_DIM, network_capacity=NETWORK_CAPACITY,
+                 latent_dim=LATENT_DIM, network_capacity=NETWORK_CAPACITY, label_dim=None,
                  *args, **kwargs):
         self.condition_on_mapper = condition_on_mapper
         self.folder = folder
+
+        self.channels = channels
 
         self.batch_size = batch_size
         self.lr = lr
@@ -51,18 +52,21 @@ class Trainer():
         self.moving_average_period = moving_average_period
         self.gradient_accumulate_every = gradient_accumulate_every
 
-        data_manager = DatasetManager(folder, train=True, val_size=val_size)
+        if label_dim is None:
+            data_manager = DatasetManager(folder, train=True, val_size=val_size, hyperdataset=(True if channels > 4 else False))
 
-        self.dataset = data_manager.get_train_set()
-        self.loader = data.DataLoader(self.dataset, num_workers=0, batch_size=batch_size,
-                                            drop_last=True, shuffle=True, pin_memory=False)
-        self.dataset_val = data_manager.get_validation_set()
-        self.loader_val = data.DataLoader(self.dataset_val, num_workers=0, batch_size=batch_size,
-                                            drop_last=True, shuffle=True, pin_memory=False)
-        
-        self.label_dim = self.dataset.label_dim
-        if not self.label_dim:
-            self.label_dim = 1
+            self.dataset = data_manager.get_train_set()
+            self.loader = data.DataLoader(self.dataset, num_workers=0, batch_size=batch_size,
+                                                drop_last=True, shuffle=True, pin_memory=False)
+            self.dataset_val = data_manager.get_validation_set()
+            self.loader_val = data.DataLoader(self.dataset_val, num_workers=0, batch_size=batch_size,
+                                                drop_last=True, shuffle=True, pin_memory=False)
+            
+            self.label_dim = self.dataset.label_dim
+            if not self.label_dim:
+                self.label_dim = 1
+        else:
+            self.label_dim = label_dim
 
         self.name = name
         self.GAN = StyleGAN2(lr=lr, lr_g=lr_g, image_size=image_size, label_dim=self.label_dim, channels=channels,
@@ -126,7 +130,7 @@ class Trainer():
             w_styles = self.styles_def_to_tensor(w_space)
 
             generated_images = self.GAN.G(w_styles, noise, label_batch)
-            fake_label, fake_type = self.GAN.D(generated_images.clone().detach(), label_batch)
+            fake_label, fake_type, fake_output = self.GAN.D(generated_images.clone().detach(), label_batch)
             fake_probs = fake_label.clone().detach()
             
             # Calculate loss for fake images (type and class)
@@ -135,7 +139,7 @@ class Trainer():
 
             image_batch = image_batch.cuda()
             image_batch.requires_grad_()
-            real_label, real_type = self.GAN.D(image_batch, label_batch)
+            real_label, real_type, real_output = self.GAN.D(image_batch, label_batch)
             real_probs = real_label.clone().detach()
 
             # Calculate loss for fake images (type and class)
@@ -177,7 +181,7 @@ class Trainer():
             w_styles = self.styles_def_to_tensor(w_space)
 
             generated_images = self.GAN.G(w_styles, noise, label_batch)
-            fake_label, fake_type = self.GAN.D(generated_images, label_batch)
+            fake_label, fake_type, fake_output = self.GAN.D(generated_images, label_batch)
             # loss = fake_label_value.mean()
             loss = criterion_class(fake_label, label_batch_index) + criterion_type(fake_type, real_type_batch)
             generator_loss = loss
@@ -318,7 +322,7 @@ class Trainer():
     
     def evaluate_discriminator(self, image_batch, label_batch):
         self.GAN.eval()
-        probs, _ = self.GAN.D(image_batch.cuda(), label_batch)
+        probs, _, _ = self.GAN.D(image_batch.cuda(), label_batch)
         return probs.clone().detach()
 
     
@@ -365,21 +369,47 @@ class Trainer():
                 ac = round(correct_per_class[i]*100/total_per_class[i], 2)
                 f.write(f'{step};Class: {i};{correct_per_class[i]}/{total_per_class[i]};{ac}%\n')
 
+    def tensor_index_select(self, images, dim=0):
+        return torch.index_select(images.cpu(), dim=dim, index=torch.tensor([2, 1, 0]))
+     
 
     def save_images(self, generated_images, filename):
+        if self.channels > 4:
+            generated_images = self.tensor_index_select(generated_images, dim=1)
         torchvision.utils.save_image(generated_images, str(RESULTS_DIR / self.name / filename),
                                      nrow=self.label_dim)
 
     def draw_reals(self):
-        nrows = 8
+        nrow = 8
         reals_filename = str(RESULTS_DIR / self.name / 'reals.png')
-        images = [image
-                  for images, labels in [next(cycle(self.loader))
-                                         for _ in range(self.label_dim * nrows // self.batch_size)]
-                  for image in images]
-        images = images[:len(images) // nrows * nrows]
-        torchvision.utils.save_image(images, reals_filename, nrow=len(images) // nrows)
-        # print(f'\nMosaic of real images created at {reals_filename}\n')
+        images_per_class = [[] for _ in range(self.label_dim)]
+
+        def mosaic_complete():
+            return all(len(images) == nrow for images in images_per_class)
+        
+        def traspose_images(images_per_class):
+            return [[fila[i] for fila in images_per_class] for i in range(nrow)]
+
+        def ravel(images_per_class):
+            return [image for images in images_per_class for image in images]
+
+        for images, labels in self.loader:
+            for image, label in zip(images, labels):
+                label = torch.argmax(label)
+                if len(images_per_class[label]) < nrow:
+                    if self.channels > 4:
+                        images_per_class[label].append(self.tensor_index_select(image, dim=0))
+                    else:
+                        images_per_class[label].append(image)
+
+                if mosaic_complete():
+                    break
+            if mosaic_complete():
+                break
+        
+        images_per_class = traspose_images(images_per_class)
+        images = ravel(images_per_class)
+        torchvision.utils.save_image(images, reals_filename, nrow=len(images) // nrow)
 
     def print_log(self, id, file_name=None):
         if file_name is None:
