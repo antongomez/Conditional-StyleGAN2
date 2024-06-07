@@ -100,17 +100,13 @@ def save_pgm(output, H, V, nclases, filename):
         print("* Saved file:", filename)
 
 
-def select_training_samples_seg(truth, center, H, V, sizex, sizey, porcentaje):
+def select_training_samples_seg(truth, center, H, V, sizex, sizey, train_size, val_size, seed=None):
     print("* Select training samples")
-    nclases = 0
-    N = len(truth)
-    for i in truth:
-        if i > nclases:
-            nclases = i
+    if seed is not None:
+        random.seed(seed) # Asi podemos controlar que o conxunto de validacion e o de test sexan o mesmo
+    nclases = max(truth)
     print("  classes:", nclases)
-    lista = [0] * nclases
-    for i in range(nclases):
-        lista[i] = []
+    lista = [[] for _ in range(nclases)]
     xmin = int(sizex / 2)
     xmax = H - int(math.ceil(sizex / 2))
     ymin = int(sizey / 2)
@@ -124,25 +120,41 @@ def select_training_samples_seg(truth, center, H, V, sizex, sizey, porcentaje):
             lista[truth[ind] - 1].append(ind)
     for i in range(nclases):
         random.shuffle(lista[i])
-    # seleccionamos muestras para train y test
+
+    # seleccionamos muestras para train, validation, test
     train = []
+    validation = []
     test = []
-    print("  Class    : seg.tot | train")
+    print("  Class    : seg.tot | train | validation")
     for i in range(nclases):
-        if porcentaje >= 1:
-            tot = porcentaje
+        if train_size < 1: # Interpretamos que e unha porcentaxe
+            train_samples = int(train_size * len(lista[i]))
         else:
-            tot = int(porcentaje * len(lista[i]))
-        if tot > len(lista[i]):
-            tot = len(lista[i])
-        if tot < 1 and len(lista[i]) > 0:
-            tot = 1
+            train_samples = train_size
+        if train_samples < 1 and len(lista[i]) > 0:
+            train_samples = 1
+
+        if val_size < 1:
+            val_samples = int(val_size * len(lista[i]))
+        else:
+            val_samples = val_size
+        if val_samples < 1 and len(lista[i]) > 0:
+            val_samples = 1
+
+        if train_samples >= len(lista[i]): # Deixamos polo menos unha mostra para validacion
+            train_samples = len(lista[i]) // 2
+            val_samples = len(lista[i]) - train_samples
+        elif train_samples + val_samples > len(lista[i]):
+            val_samples = len(lista[i]) - train_samples
+
         for j in range(len(lista[i])):
-            test.append(lista[i][j])  # vamos a testear todo menos los train centers
-            if j < tot:
+            test.append(lista[i][j]) # testeamos con todo
+            if j < train_samples:
                 train.append(lista[i][j])
-        print("  Class", f"{i+1:2d}", ":", f"{len(lista[i]):7d}", "|", f"{tot:5d}")
-    return (train, test, nclases)
+            elif j < train_samples + val_samples:
+                validation.append(lista[i][j])
+        print("  Class", f"{i+1:2d}", ":", f"{len(lista[i]):7d}", "|", f"{train_samples:5d}", "|", f"{val_samples:10d}")
+    return (train, validation, test, nclases)
 
 
 def select_patch(datos, sizex, sizey, x, y):
@@ -165,9 +177,9 @@ class DatasetManager():
         
         if val_size is not None and val_size <= 0:
             raise ValueError("Validation size must be a positive integer.")
-
+        
         if hyperdataset:
-            self.__init_hyper__(folder, train, download, val_size)
+            self.__init_hyper__(folder)
         else:
             self.__init_mnist__(folder, train, download, val_size)
         
@@ -192,7 +204,7 @@ class DatasetManager():
             self.data_val = None
             self.data_test = Dataset(dataset, classes)
 
-    def __init_hyper__(self, folder, train, download, val_size):
+    def __init_hyper__(self, folder):
         # 2. Load datos
         (datos, H, V, B) = read_raw(f"{folder}/{DATASET}")
         (truth, H1, V1) = read_pgm(f"{folder}/{GT}")
@@ -202,34 +214,23 @@ class DatasetManager():
         # necesitamos los datos en band-vector para hacer convoluciones
         datos = np.transpose(datos, (2, 0, 1))
 
-        if val_size is None:
-            samples = 200
-        else:
-            samples = val_size
+        train_size = 200
+        val_size = 200
 
         # 3. Selection training, testing sets
         # (center,nseg)=seg_center(seg,H,V)
         (center, H3, V3, nseg) = read_seg_centers(f"{folder}/{CENTER}")
-        (train_samples, val_samples, nclases) = select_training_samples_seg(truth, center, H, V, sizex, sizey, samples)
+        (train_samples, val_samples, test_samples, nclases) = select_training_samples_seg(truth, center, H, V, sizex, sizey, train_size, val_size, seed=1)
         data_train = HyperDataset(datos, truth, train_samples, H, V, sizex, sizey)
         print("  - train dataset:", len(data_train))
         data_val = HyperDataset(datos, truth, val_samples, H, V, sizex, sizey)
         print("  - val dataset:", len(data_val))
+        data_test = HyperDataset(datos, truth, test_samples, H, V, sizex, sizey)
+        print("  - test dataset:", len(data_test))
 
-        if train:
-            self.data_test = None
-            if val_size is not None:
-                self.data_train = data_train
-                self.data_val = data_val
-            else:
-                self.data_train = data_train
-                self.data_val = None
-        else:
-            self.data_train = None
-            self.data_val = None
-            self.data_test = data_val
-        
-        
+        self.data_train = data_train
+        self.data_val = data_val if val_size is not None else None
+        self.data_test = data_test
 
     def get_train_set(self):
         if self.data_train is None:
