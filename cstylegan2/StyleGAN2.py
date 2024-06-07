@@ -142,16 +142,27 @@ class Discriminator(nn.Module):
 
         b, *_ = x.shape
         x = self.blocks(x)
+        # Pasamos dun tamaño de (b, c, h, w) a (b, c*h*w)
+        # Se image-size = 32, enton c = network_capacity*16 = 256 e h = w = 2,
+        # polo que c*h*w = network_capacity*16*2*2 = network_capacity*64
+        # Se network_capacity = 16, entón c*h*w = 16*64 = 1024
+        x = x.reshape(b, -1) 
+
+        last_layer_output = self.to_label(x)
+        x_output = torch.sum(last_layer_output * labels, axis=1)
+
+        return x_output.squeeze(), last_layer_output.detach()
+    
+    # Función para obter a representación dunha imaxe no espazo da ultima capa
+    def get_unconditional_output(self, x):
+        b, *_ = x.shape
+        x = self.blocks(x)
         x = x.reshape(b, -1)
+        return x
 
-        x_label = self.to_label(x)
-        x_logit = torch.sum(x_label * labels, axis=1)
-        x_label_probs = F.log_softmax(x_label, dim=1)
-
-        x_type = self.to_real(x)
-        x_type = torch.sigmoid(x_type)
-
-        return x_label_probs, x_type.squeeze(), x_logit.squeeze()
+    # Funcion que devolve os pesos asociados aos hiperplanos que separan as clases
+    def get_label_weights(self):
+        return self.to_label.weight, self.to_label.bias
 
 
 class GeneratorBlock(nn.Module):

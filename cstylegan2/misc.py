@@ -15,8 +15,10 @@ def gradient_penalty(images, output, labels, weight=10):
     :return:
     """
     batch_size = images.shape[0]
+    grad_outputs = torch.ones_like(output).cuda()
+                                          
     gradients = torch_grad(outputs=output, inputs=images,
-                           grad_outputs=torch.ones(output.size()).cuda(),
+                           grad_outputs=grad_outputs,
                            create_graph=True, retain_graph=True, only_inputs=True)[0]
 
     gradients = gradients.view(batch_size, -1)
