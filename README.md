@@ -14,7 +14,7 @@ conda env create -f environment.yml
 
 # Conxuntos de datos
 
-Os conxuntos de datos multiespectrais empregados non son de dominio público. Porén, o Grupo de Intelixencial Computacional da Universidade do País Vasco pona disposición do usuario unha serie de conxuntos de datos multiespectrais para a súa descarga que se poden descargar dende [aquí](https://www.ehu.eus/ccwintco/index.php/Hyperspectral_Remote_Sensing_Scenes).
+Os conxuntos de datos multiespectrais empregados non son de dominio público. Porén, o Grupo de Intelixencial Computacional da Universidade do País Vasco pona disposición do usuario unha serie de conxuntos de datos multiespectrais para a súa descarga que se poden descargar dende esta [carpeta de OneDrive](https://nubeusc-my.sharepoint.com/personal/anton_gomez_lopez_rai_usc_es/_layouts/15/onedrive.aspx?sw=bypass&bypassReason=abandoned&id=%2Fpersonal%2Fanton%5Fgomez%5Flopez%5Frai%5Fusc%5Fes%2FDocuments%2FTFG%2FStyleGAN2%2Dcondicionada%2Dclasificacion%2Fdata%2FPAVIA&ga=1) ou dende a [páxina do grupo](https://www.ehu.eus/ccwintco/index.php/Hyperspectral_Remote_Sensing_Scenes).
 
 En particular, a rede está preparada para procesar unha destas imaxes multiespectrais: _Pavia University_. Para empregar outro conxunto de datos, é necesario modificar o arquivo `ctyleGAN2/dataset.py` para poder ler a imaxe, os segmentos, os centros e o mapa de clases (_ground truth_).
 
@@ -41,7 +41,7 @@ Este script permite modificar o número de _train steps_, así como o _learning 
 
 ## PAVIA
 
-Dentro do directorio `scripts` tamén se proporciona un script para realizar un adestramento coa imaxe multiespectral _Pavia University_. Para iso, é necesario descargala dende [aquí](https://www.ehu.eus/ccwintco/index.php/Hyperspectral_Remote_Sensing_Scenes) e nomear os arquivos como se indicou.
+Dentro do directorio `scripts` tamén se proporciona un script para realizar un adestramento coa imaxe multiespectral _Pavia University_. Para iso, é necesario descargala dende [aquí](https://nubeusc-my.sharepoint.com/personal/anton_gomez_lopez_rai_usc_es/_layouts/15/onedrive.aspx?view=0&id=%2Fpersonal%2Fanton%5Fgomez%5Flopez%5Frai%5Fusc%5Fes%2FDocuments%2FTFG%2FStyleGAN2%2Dcondicionada%2Dclasificacion%2Fdata%2FPAVIA).
 
 Para avaliar a precisión a nivel de píxel pode empregarse o script de Python `cstylegan2/test_D.py`.
 
