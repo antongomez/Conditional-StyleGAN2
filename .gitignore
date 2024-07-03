@@ -24,3 +24,6 @@ data/MERA
 data/XESTA
 data/MESTAS
 data/ULLA
+
+# Files exceed maximum size that git can handle
+data/PAVIA/
