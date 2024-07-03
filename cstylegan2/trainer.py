@@ -9,27 +9,84 @@ import torch.nn.functional as F
 
 import torchvision
 
-from dataset import cycle, DatasetManager
+from dataset import DatasetManager
 from StyleGAN2 import StyleGAN2
 import numpy as np
-from misc import gradient_penalty, image_noise, noise_list, mixed_list, latent_to_w, \
-    evaluate_in_chunks, styles_def_to_tensor, EMA
+from misc import (
+    gradient_penalty,
+    image_noise,
+    noise_list,
+    mixed_list,
+    latent_to_w,
+    evaluate_in_chunks,
+    styles_def_to_tensor,
+    EMA,
+)
 
-from config import RESULTS_DIR, MODELS_DIR, LOG_DIR, EPSILON, VAL_FILENAME, TRAIN_FILENAME, LOG_FILENAME, GPU_BATCH_SIZE, LEARNING_RATE, \
-    PATH_LENGTH_REGULIZER_FREQUENCY, HOMOGENEOUS_LATENT_SPACE, USE_DIVERSITY_LOSS, SAVE_EVERY, EVALUATE_EVERY, \
-    VAL_SIZE, CHANNELS, CONDITION_ON_MAPPER, MIXED_PROBABILITY, GRADIENT_ACCUMULATE_EVERY, MOVING_AVERAGE_START, \
-    MOVING_AVERAGE_PERIOD, USE_BIASES, LABEL_EPSILON, LATENT_DIM, NETWORK_CAPACITY, LOG_DIR
+from config import (
+    RESULTS_DIR,
+    MODELS_DIR,
+    LOG_DIR,
+    EPSILON,
+    VAL_FILENAME,
+    TRAIN_FILENAME,
+    LOG_FILENAME,
+    GPU_BATCH_SIZE,
+    LEARNING_RATE,
+    PATH_LENGTH_REGULIZER_FREQUENCY,
+    HOMOGENEOUS_LATENT_SPACE,
+    USE_DIVERSITY_LOSS,
+    SAVE_EVERY,
+    EVALUATE_EVERY,
+    VAL_SIZE,
+    CHANNELS,
+    CONDITION_ON_MAPPER,
+    MIXED_PROBABILITY,
+    GRADIENT_ACCUMULATE_EVERY,
+    MOVING_AVERAGE_START,
+    MOVING_AVERAGE_PERIOD,
+    USE_BIASES,
+    LABEL_EPSILON,
+    LATENT_DIM,
+    NETWORK_CAPACITY,
+    LOG_DIR,
+    LEARNING_RATE_FINAL,
+    LEARNING_RATE_G_FINAL,
+    TRAIN_SIZE,
+)
 
 
-class Trainer():
-    def __init__(self, name, folder, image_size, batch_size=GPU_BATCH_SIZE, mixed_prob=MIXED_PROBABILITY,
-                 lr=LEARNING_RATE, lr_g=LEARNING_RATE, channels=CHANNELS, path_length_regulizer_frequency=PATH_LENGTH_REGULIZER_FREQUENCY,
-                 homogeneous_latent_space=HOMOGENEOUS_LATENT_SPACE, use_diversity_loss=USE_DIVERSITY_LOSS,
-                 save_every=SAVE_EVERY, evaluate_every=EVALUATE_EVERY, val_size=VAL_SIZE, 
-                 condition_on_mapper=CONDITION_ON_MAPPER, gradient_accumulate_every=GRADIENT_ACCUMULATE_EVERY, moving_average_start=MOVING_AVERAGE_START,
-                 moving_average_period=MOVING_AVERAGE_PERIOD, use_biases=USE_BIASES, label_epsilon=LABEL_EPSILON,
-                 latent_dim=LATENT_DIM, network_capacity=NETWORK_CAPACITY, label_dim=None,
-                 *args, **kwargs):
+class Trainer:
+    def __init__(
+        self,
+        name,
+        folder,
+        image_size,
+        batch_size=GPU_BATCH_SIZE,
+        mixed_prob=MIXED_PROBABILITY,
+        lr=LEARNING_RATE,
+        lr_g=LEARNING_RATE,
+        channels=CHANNELS,
+        path_length_regulizer_frequency=PATH_LENGTH_REGULIZER_FREQUENCY,
+        homogeneous_latent_space=HOMOGENEOUS_LATENT_SPACE,
+        use_diversity_loss=USE_DIVERSITY_LOSS,
+        save_every=SAVE_EVERY,
+        evaluate_every=EVALUATE_EVERY,
+        val_size=VAL_SIZE,
+        condition_on_mapper=CONDITION_ON_MAPPER,
+        gradient_accumulate_every=GRADIENT_ACCUMULATE_EVERY,
+        moving_average_start=MOVING_AVERAGE_START,
+        moving_average_period=MOVING_AVERAGE_PERIOD,
+        use_biases=USE_BIASES,
+        label_epsilon=LABEL_EPSILON,
+        latent_dim=LATENT_DIM,
+        network_capacity=NETWORK_CAPACITY,
+        label_dim=None,
+        lr_final=LEARNING_RATE_FINAL,
+        lr_g_final=LEARNING_RATE_G_FINAL,
+        *args,
+        **kwargs,
+    ):
         self.condition_on_mapper = condition_on_mapper
         self.folder = folder
 
@@ -53,32 +110,61 @@ class Trainer():
         self.gradient_accumulate_every = gradient_accumulate_every
 
         if label_dim is None:
-            data_manager = DatasetManager(folder, train=True, val_size=val_size, hyperdataset=(True if channels > 4 else False))
+            data_manager = DatasetManager(
+                folder,
+                train=True,
+                val_size=val_size,
+                hyperdataset=(True if channels > 4 else False),
+                batch_size=batch_size,
+            )
 
             self.dataset = data_manager.get_train_set()
-            self.loader = data.DataLoader(self.dataset, num_workers=0, batch_size=batch_size,
-                                                drop_last=True, shuffle=True, pin_memory=False)
+            self.loader = data.DataLoader(
+                self.dataset, num_workers=0, batch_size=batch_size, drop_last=True, shuffle=True, pin_memory=False
+            )
+
+            if channels > 4 and TRAIN_SIZE < 1:
+                drop_last = False
+            else:
+                drop_last = True
             self.dataset_val = data_manager.get_validation_set()
-            self.loader_val = data.DataLoader(self.dataset_val, num_workers=0, batch_size=batch_size,
-                                                drop_last=True, shuffle=True, pin_memory=False)
-            
+            self.loader_val = data.DataLoader(
+                self.dataset_val,
+                num_workers=0,
+                batch_size=batch_size,
+                drop_last=drop_last,
+                shuffle=False,
+                pin_memory=False,
+            )
+
             self.label_dim = self.dataset.label_dim
             if not self.label_dim:
                 self.label_dim = 1
         else:
             self.label_dim = label_dim
 
+        print(f"Label dim: {self.label_dim}")
+
         self.name = name
-        self.GAN = StyleGAN2(lr=lr, lr_g=lr_g, image_size=image_size, label_dim=self.label_dim, channels=channels,
-                             condition_on_mapper=self.condition_on_mapper, label_epsilon=label_epsilon,
-                             use_biases=use_biases, latent_dim=latent_dim, network_capacity=network_capacity,
-                             *args, **kwargs)
+        self.GAN = StyleGAN2(
+            lr=lr,
+            lr_g=lr_g,
+            image_size=image_size,
+            label_dim=self.label_dim,
+            channels=channels,
+            condition_on_mapper=self.condition_on_mapper,
+            label_epsilon=label_epsilon,
+            use_biases=use_biases,
+            latent_dim=latent_dim,
+            network_capacity=network_capacity,
+            lr_final=lr_final,
+            lr_g_final=lr_g_final,
+            *args,
+            **kwargs,
+        )
         self.GAN.cuda()
 
-
         self.d_loss = 0
-        self.d_fake_loss = 0
-        self.d_real_loss = 0
         self.g_loss = 0
         self.last_gp_loss = 0
         self.g_loss_val = 0
@@ -111,8 +197,7 @@ class Trainer():
         latent_dim = self.GAN.G.latent_dim if self.condition_on_mapper else self.GAN.G.latent_dim - self.label_dim
         num_layers = self.GAN.G.num_layers
 
-        for (image_batch, label_batch) in tqdm(self.loader, ncols=60, desc=f'Epoch {self.epochs}'):
-
+        for image_batch, label_batch in tqdm(self.loader, ncols=60, desc=f"Epoch {self.epochs}"):
             apply_gradient_penalty = self.steps % 4 == 0
             apply_path_penalty = self.steps % self.path_length_regulizer_frequency == 0
 
@@ -120,6 +205,7 @@ class Trainer():
             label_batch_index = torch.argmax(label_batch, dim=1)
 
             # train discriminator
+
             average_path_length = self.path_length_mean
             self.GAN.D_opt.zero_grad()
 
@@ -133,7 +219,7 @@ class Trainer():
             generated_images = self.GAN.G(w_styles, noise, label_batch)
             fake_output, last_layer_output = self.GAN.D(generated_images.clone().detach(), label_batch)
             fake_probs = last_layer_output.clone().detach()
-            
+
             # Calculate loss for fake images (hinge_loss)
             lossD_fake = F.relu(1 - fake_output).mean()
 
@@ -146,9 +232,9 @@ class Trainer():
             lossD_real = F.relu(1 + real_output).mean()
 
             discriminator_loss = lossD_real + lossD_fake
-            self.d_fake_loss = lossD_fake.clone().detach().item()
-            self.d_real_loss = lossD_real.clone().detach().item()
-            self.d_loss = discriminator_loss.clone().detach().item() # Do not include gradient penalty in the printed discriminator loss
+            self.d_loss = (
+                discriminator_loss.clone().detach().item()
+            )  # Do not include gradient penalty in the printed discriminator loss
 
             if apply_gradient_penalty:
                 gp = gradient_penalty(image_batch, real_output, label_batch)
@@ -161,15 +247,18 @@ class Trainer():
             # Calculate accuracy on train with fake and real images
             fake_predicted_indexes = torch.argmin(fake_probs, dim=1)
             real_predicted_indexes = torch.argmin(real_probs, dim=1)
-            for fake_pred, real_pred, real_class in zip(fake_predicted_indexes, real_predicted_indexes, label_batch_index):
+            for fake_pred, real_pred, real_class in zip(
+                fake_predicted_indexes, real_predicted_indexes, label_batch_index
+            ):
                 self.fake_cm[real_class, fake_pred] += 1
                 self.real_cm[real_class, real_pred] += 1
 
             # train generator
             self.GAN.G_opt.zero_grad()
             if self.use_diversity_loss:
-                labels = np.array([np.eye(self.label_dim)[np.random.randint(self.label_dim)]
-                                for _ in range(8 * self.label_dim)])
+                labels = np.array(
+                    [np.eye(self.label_dim)[np.random.randint(self.label_dim)] for _ in range(8 * self.label_dim)]
+                )
                 self.set_evaluation_parameters(labels_to_evaluate=labels, reset=True)
                 self.evaluate()
                 w = self.last_latents.cpu().data.numpy()
@@ -183,7 +272,9 @@ class Trainer():
             generated_images = self.GAN.G(w_styles, noise, label_batch)
             fake_output, last_layer_output = self.GAN.D(generated_images, label_batch)
             generator_loss = fake_output.mean()
-            self.g_loss = float(generator_loss.clone().detach().item()) # Do not include path length loss in the printed generator loss
+            self.g_loss = float(
+                generator_loss.clone().detach().item()
+            )  # Do not include path length loss in the printed generator loss
 
             if self.homogeneous_latent_space and apply_path_penalty:
                 std = 0.1 / (w_styles.std(dim=0, keepdims=True) + EPSILON)
@@ -204,8 +295,9 @@ class Trainer():
             # calculate moving averages
 
             if apply_path_penalty and not np.isnan(average_path_length):
-                self.path_length_mean = self.path_length_moving_average.update_average(self.path_length_mean,
-                                                                                    average_path_length)
+                self.path_length_mean = self.path_length_moving_average.update_average(
+                    self.path_length_mean, average_path_length
+                )
 
             if self.steps == self.moving_average_start:
                 self.GAN.reset_parameter_averaging()
@@ -215,20 +307,32 @@ class Trainer():
             if not self.steps % self.save_every:
                 self.save(self.steps // self.save_every)
                 # Cando gardamos un modelo imprimimos a accuracy co dataset de entrenamento
-                self.print_accuracy(f"{LOG_DIR}/{self.name}/{TRAIN_FILENAME}", self.steps // self.save_every, np.diag(self.real_cm), self.real_cm.sum(axis=1))
-                self.real_cm = np.zeros_like(self.real_cm) # Reset confusion matrix
+                self.print_accuracy(
+                    f"{LOG_DIR}/{self.name}/{TRAIN_FILENAME}",
+                    self.steps // self.save_every,
+                    np.diag(self.real_cm),
+                    self.real_cm.sum(axis=1),
+                )
+                self.real_cm = np.zeros_like(self.real_cm)  # Reset confusion matrix
                 # Cando gardamos un modelo avaliamos o discriminador co dataset de validacion
-                correct_per_class, total_per_class, _ = self.calculate_accuracy(self.loader_val, show_progress=False, confusion_matrix=False)
-                self.print_accuracy(f"{LOG_DIR}/{self.name}/{VAL_FILENAME}", self.steps // self.save_every, correct_per_class, total_per_class)
+                correct_per_class, total_per_class, _ = self.calculate_accuracy(
+                    self.loader_val, show_progress=False, confusion_matrix=False
+                )
+                self.print_accuracy(
+                    f"{LOG_DIR}/{self.name}/{VAL_FILENAME}",
+                    self.steps // self.save_every,
+                    correct_per_class,
+                    total_per_class,
+                )
                 # Imprimimos a perda do xerador e do discriminador
                 self.print_log(self.steps // self.save_every)
 
             if not self.steps % self.evaluate_every:
                 self.set_evaluation_parameters()
                 generated_images, average_generated_images = self.evaluate()
-                self.save_images(generated_images, f'{self.steps // self.evaluate_every}.png')
-                self.save_images(generated_images, 'fakes.png')
-                self.save_images(average_generated_images, f'{self.steps // self.evaluate_every}-EMA.png')            
+                self.save_images(generated_images, f"{self.steps // self.evaluate_every}.png")
+                self.save_images(generated_images, "fakes.png")
+                self.save_images(average_generated_images, f"{self.steps // self.evaluate_every}-EMA.png")
 
             self.steps += 1
             self.av = None
@@ -236,10 +340,26 @@ class Trainer():
         # Calculamos a perda do xerador e do discriminador co dataset de validacion
         # ao final de cada epoca
         self.d_loss_val, self.g_loss_val = self.calculate_losses(self.loader_val)
+        # Actualizamos o scheduler que reduce a taxa de aprendizaxe en certas epocas
         self.epochs += 1
+        self.GAN.G_scheduler.step()
+        self.GAN.D_scheduler.step()
+        if self.epochs % 5 == 0 and self.epochs >= 20 and self.epochs <= 160:
+            current_lr = self.GAN.D_opt.param_groups[0]["lr"]
+            print(f"Epoch {self.epochs}: Learning Rate Discriminator {current_lr}")
+            current_lr_g = self.GAN.G_opt.param_groups[0]["lr"]
+            print(f"Epoch {self.epochs}: Learning Rate Generator {current_lr_g}")
 
-    def set_evaluation_parameters(self, latents_to_evaluate=None, noise_to_evaluate=None, labels_to_evaluate=None,
-                                  num_rows='labels', num_cols=8, reset=False, total=None):
+    def set_evaluation_parameters(
+        self,
+        latents_to_evaluate=None,
+        noise_to_evaluate=None,
+        labels_to_evaluate=None,
+        num_rows="labels",
+        num_cols=8,
+        reset=False,
+        total=None,
+    ):
         """
         Set the latent vectors, the noises and the labels to evaluate, convert them to tensor, cuda and float if needed
 
@@ -261,16 +381,18 @@ class Trainer():
         :param total: bypass the num_cols and num_rows to choose the total number of imgs
         :type total: int, optional, default is None
         """
-        if num_rows == 'labels':
+        if num_rows == "labels":
             num_rows = self.label_dim
-        if num_cols == 'labels':
+        if num_cols == "labels":
             num_cols = self.label_dim
         if total is None:
             total = num_cols * num_rows
 
         if latents_to_evaluate is None:
             if self.latents_to_evaluate is None or reset:
-                latent_dim = self.GAN.G.latent_dim if self.condition_on_mapper else self.GAN.G.latent_dim - self.label_dim
+                latent_dim = (
+                    self.GAN.G.latent_dim if self.condition_on_mapper else self.GAN.G.latent_dim - self.label_dim
+                )
                 self.latents_to_evaluate = noise_list(total, self.GAN.G.num_layers, latent_dim)
         else:
             self.latents_to_evaluate = latents_to_evaluate
@@ -303,22 +425,31 @@ class Trainer():
             if use_mapper:
                 latents = latent_to_w(stylizer, latents, labels)
                 latents = styles_def_to_tensor(latents)
-                
-                latents_mean = torch.mean(latents, dim=(1,2))
-                latents =  truncation_trick*(latents - latents_mean[:, None, None]) + latents_mean[:, None, None]
-                
+
+                latents_mean = torch.mean(latents, dim=(1, 2))
+                latents = truncation_trick * (latents - latents_mean[:, None, None]) + latents_mean[:, None, None]
+
             self.last_latents = latents  # for inspection purpose
 
             generated_images = self.evaluate_in_chunks(self.batch_size, generator, latents, noise, labels)
-            generated_images.clamp_(0., 1.)
             return generated_images
-        
-        generated_images = generate_images(self.GAN.S, self.GAN.G,
-                                           self.latents_to_evaluate, self.noise_to_evaluate, self.labels_to_evaluate,
-                                           truncation_trick=truncation_trick)
-        average_generated_images = generate_images(self.GAN.SE, self.GAN.GE,
-                                                   self.latents_to_evaluate, self.noise_to_evaluate,
-                                                   self.labels_to_evaluate, truncation_trick=truncation_trick)
+
+        generated_images = generate_images(
+            self.GAN.S,
+            self.GAN.G,
+            self.latents_to_evaluate,
+            self.noise_to_evaluate,
+            self.labels_to_evaluate,
+            truncation_trick=truncation_trick,
+        )
+        average_generated_images = generate_images(
+            self.GAN.SE,
+            self.GAN.GE,
+            self.latents_to_evaluate,
+            self.noise_to_evaluate,
+            self.labels_to_evaluate,
+            truncation_trick=truncation_trick,
+        )
         return generated_images, average_generated_images
 
     @torch.no_grad()
@@ -326,8 +457,8 @@ class Trainer():
         self.GAN.eval()
         _, probs = self.GAN.D(image_batch.cuda(), label_batch)
         return probs.clone()
-    
-    def calculate_accuracy(self, loader, show_progress = False, confusion_matrix = False):
+
+    def calculate_accuracy(self, loader, show_progress=False, confusion_matrix=False):
         correct_per_class = np.zeros(self.label_dim, dtype=int)
         total_per_class = np.zeros(self.label_dim, dtype=int)
 
@@ -343,7 +474,7 @@ class Trainer():
 
         for image_batch, label_batch in iter:
             output = self.evaluate_discriminator(image_batch, label_batch)
-            predicted_indexes = torch.argmin(output, dim=1) # Calculamos o minimo
+            predicted_indexes = torch.argmin(output, dim=1)  # Calculamos o minimo
             real_class_batch_indexes = torch.argmax(label_batch, dim=1)
 
             for predicted, real_class in zip(predicted_indexes, real_class_batch_indexes):
@@ -353,26 +484,107 @@ class Trainer():
                     cm[real_class, predicted] += 1
 
         return correct_per_class, total_per_class, cm
-    
+
+    def calculate_pixel_accuracy(self, dataset_manager, dataset, loader, show_progress=False, confusion_matrix=False):
+
+        if show_progress:
+            iter = tqdm(loader, ncols=60, desc="Evaluating")
+        else:
+            iter = loader
+
+        # Get ground-truth and MSI image dimensions
+        (truth, center, seg, H, V) = dataset_manager.getImageInfo()
+        test = dataset.samples
+        train = dataset_manager.get_train_set().samples
+        validation = dataset_manager.get_validation_set().samples
+        nclases = dataset.label_dim
+        label_map = dataset.label_map
+
+        # Get predictions and initialize pixel map for output
+        correct = 0
+        total = 0
+        pixel_output = np.zeros(H * V, dtype=np.uint8)  # mapa de salida de pixels
+        for image_batch, label_batch in iter:
+            output = self.evaluate_discriminator(image_batch, label_batch)
+            predicted_indexes = torch.argmin(output, dim=1)  # Calculamos o minimo
+            real_class_batch_indexes = torch.argmax(label_batch, dim=1)
+
+            predicted = predicted_indexes.cpu()
+            for i in range(len(predicted)):
+                # skip when we fill the last batch with the begginning of the dataset again
+                if total + i == len(test):
+                    total -= self.batch_size - i  # adjust total
+                    break
+                # queremos que las clases comiencen en 1 en vez de 0
+                pixel_output[test[total + i]] = np.uint8(predicted[i] + 1)
+            total += real_class_batch_indexes.size(0)
+
+        # Generating classifier map
+        if show_progress:
+            iter = tqdm(range(H * V), ncols=60, desc="Generating classif.map")
+        else:
+            iter = range(H * V)
+
+        for i in iter:
+            pixel_output[i] = pixel_output[center[seg[i]]]
+        # eliminamos los centros usados en el entrenamiento
+        for i in train:
+            pixel_output[i] = 0
+        for i in validation:
+            pixel_output[i] = 0
+
+        # Calculate accuracy on pixels
+        if show_progress:
+            iter = tqdm(range(len(pixel_output)), ncols=60, desc="Calculating accuracy on pixels")
+        else:
+            iter = range(len(pixel_output))
+
+        correct = 0
+        total = 0
+        AA = 0
+        OA = 0
+        class_correct = [0] * (nclases + 1)
+        class_total = [0] * (nclases + 1)
+        class_accuracies = [0] * (nclases + 1)
+        for i in iter:
+            if pixel_output[i] == 0 or truth[i] == 0:
+                continue
+            pixel_truth = label_map[truth[i]]
+            total += 1
+            class_total[pixel_truth] += 1
+            if pixel_output[i] == pixel_truth:
+                correct += 1
+                class_correct[pixel_truth] += 1
+        for i in range(1, nclases + 1):
+            if class_total[i] != 0:
+                class_accuracies[i] = class_correct[i] / class_total[i]
+            else:
+                class_accuracies[i] = 0
+            AA += class_accuracies[i]
+        OA = correct / total
+        AA = AA / nclases
+
+        return OA, AA, class_accuracies
+
     def print_accuracy(self, file, step, correct_per_class, total_per_class):
         if step == 0:
-            with open(file, 'w') as f:
-                f.write('Model;Class;Correct/Total;Accuracy\n')
+            with open(file, "w") as f:
+                f.write("Model;Class;Correct/Total;Accuracy\n")
 
-        with open(file, 'a') as f:
+        with open(file, "a") as f:
             # Overall accuracy
             correct = sum(correct_per_class)
             total = sum(total_per_class)
-            ac = round(correct*100/total, 2)
-            f.write(f'{step};Overall;{correct}/{total};{ac}%\n')
+            ac = round(correct * 100 / total, 2)
+            f.write(f"{step};Overall;{correct}/{total};{ac}%\n")
             # Per class accuracy
             for i in range(len(correct_per_class)):
-                ac = round(correct_per_class[i]*100/total_per_class[i], 2)
-                f.write(f'{step};Class: {i};{correct_per_class[i]}/{total_per_class[i]};{ac}%\n')
+                ac = round(correct_per_class[i] * 100 / total_per_class[i], 2)
+                f.write(f"{step};Class: {i};{correct_per_class[i]}/{total_per_class[i]};{ac}%\n")
 
     def tensor_index_select(self, images, dim=0):
         return torch.index_select(images.cpu(), dim=dim, index=torch.tensor([2, 1, 0]))
-    
+
     @torch.no_grad()
     def calculate_losses(self, loader, show_progress=False):
         self.GAN.eval()
@@ -390,7 +602,7 @@ class Trainer():
         else:
             iter = loader
 
-        for (image_batch, label_batch) in iter:
+        for image_batch, label_batch in iter:
 
             # Discriminator loss
             get_latents_fn = mixed_list if random() < self.mixed_prob else noise_list
@@ -402,7 +614,7 @@ class Trainer():
 
             generated_images = self.GAN.G(w_styles, noise, label_batch)
             fake_output, _ = self.GAN.D(generated_images.clone().detach(), label_batch)
-            
+
             # Calculate loss for fake images (hinge_loss)
             lossD_fake = F.relu(1 - fake_output).mean()
 
@@ -421,7 +633,7 @@ class Trainer():
             generated_images = self.GAN.G(w_styles, noise, label_batch)
             fake_output, _ = self.GAN.D(generated_images, label_batch)
             generator_loss += fake_output.mean().item()
-        
+
         discriminator_loss /= len(loader)
         generator_loss /= len(loader)
 
@@ -430,17 +642,18 @@ class Trainer():
     def save_images(self, generated_images, filename):
         if self.channels > 4:
             generated_images = self.tensor_index_select(generated_images, dim=1)
-        torchvision.utils.save_image(generated_images, str(RESULTS_DIR / self.name / filename),
-                                     nrow=self.label_dim)
+        torchvision.utils.save_image(
+            generated_images, str(RESULTS_DIR / self.name / filename), nrow=self.label_dim, normalize=True
+        )
 
     def draw_reals(self):
         nrow = 8
-        reals_filename = str(RESULTS_DIR / self.name / 'reals.png')
+        reals_filename = str(RESULTS_DIR / self.name / "reals.png")
         images_per_class = [[] for _ in range(self.label_dim)]
 
         def mosaic_complete():
             return all(len(images) == nrow for images in images_per_class)
-        
+
         def traspose_images(images_per_class):
             return [[fila[i] for fila in images_per_class] for i in range(nrow)]
 
@@ -460,26 +673,34 @@ class Trainer():
                     break
             if mosaic_complete():
                 break
-        
+
+        # In some datasets there are less than 8 images per class
+        if not mosaic_complete():
+            for i in range(len(images_per_class)):
+                # If there are less than 8 images per class, repeat the last one
+                while len(images_per_class[i]) < nrow:
+                    images_per_class[i].append(images_per_class[i][-1])
+
         images_per_class = traspose_images(images_per_class)
         images = ravel(images_per_class)
-        torchvision.utils.save_image(images, reals_filename, nrow=len(images) // nrow)
+        torchvision.utils.save_image(images, reals_filename, nrow=len(images) // nrow, normalize=True)
 
     def print_log(self, id, file_name=None):
         if file_name is None:
             file_name = f"{LOG_DIR}/{self.name}/{LOG_FILENAME}"
         if id == 0:
-            with open(file_name, 'w') as file:
-                file.write('G;D;GP;PL;GV;DV\n')
+            with open(file_name, "w") as file:
+                file.write("G;D;GP;PL;GV;DV\n")
         else:
-            with open(file_name, 'a') as file:
-                file.write(f'{self.g_loss:.4f};{self.d_loss:.4f};{self.last_gp_loss:.4f};{self.path_length_mean:.4f};{self.g_loss_val:.4f};{self.d_loss_val:.4f}\n')
-                
+            with open(file_name, "a") as file:
+                file.write(
+                    f"{self.g_loss:.4f};{self.d_loss:.4f};{self.last_gp_loss:.4f};{self.path_length_mean:.4f};{self.g_loss_val:.4f};{self.d_loss_val:.4f}\n"
+                )
 
     def model_name(self, num, root=MODELS_DIR):
         if isinstance(root, str):
             root = Path(root)
-        return str(root / self.name / f'model_{num}.pt')
+        return str(root / self.name / f"model_{num}.pt")
 
     def init_folders(self):
         (RESULTS_DIR / self.name).mkdir(parents=True, exist_ok=True)
@@ -499,12 +720,12 @@ class Trainer():
             root = Path(root)
         name = num
         if num == -1:
-            file_paths = [p for p in Path(root / self.name).glob('model_*.pt')]
-            saved_nums = sorted(map(lambda x: int(x.stem.split('_')[1]), file_paths))
+            file_paths = [p for p in Path(root / self.name).glob("model_*.pt")]
+            saved_nums = sorted(map(lambda x: int(x.stem.split("_")[1]), file_paths))
             if len(saved_nums) == 0:
                 return
             name = saved_nums[-1]
-            print(f'Continuing from previous epoch - {name}')
+            print(f"Continuing from previous epoch - {name}")
         self.steps = name * self.save_every
         self.GAN.load_state_dict(torch.load(self.model_name(name, root=root)))
 
@@ -516,8 +737,8 @@ class Trainer():
     def get_weights(self):
         weights, biases = self.GAN.D.get_label_weights()
         return weights.clone().detach(), biases.clone().detach()
-    
-    def get_intermediate_representation(self, loader, show_progress = False):
+
+    def get_intermediate_representation(self, loader, show_progress=False):
         if show_progress:
             iter = tqdm(loader, ncols=60)
         else:
@@ -530,10 +751,9 @@ class Trainer():
             intermediate_output = self.get_intermediate_output(image_batch)
             intermediate_outputs.append(intermediate_output)
             labels.append(label_batch)
-        
+
         intermediate_outputs = torch.cat(intermediate_outputs, dim=0)
         labels = torch.cat(labels, dim=0)
         label_weights, label_biases = self.get_weights()
 
         return intermediate_outputs, labels, label_weights, label_biases
-    

@@ -5,14 +5,51 @@ from torch import nn
 import torch.nn.functional as F
 
 from misc import EMA, set_requires_grad
-from config import EPSILON, LATENT_DIM, STYLE_DEPTH, NETWORK_CAPACITY, LEARNING_RATE, CHANNELS, \
-    CONDITION_ON_MAPPER, USE_BIASES, LABEL_EPSILON
+from config import (
+    EPSILON,
+    LATENT_DIM,
+    STYLE_DEPTH,
+    NETWORK_CAPACITY,
+    LEARNING_RATE,
+    CHANNELS,
+    CONDITION_ON_MAPPER,
+    USE_BIASES,
+    LABEL_EPSILON,
+    LEARNING_RATE_FINAL,
+    LEARNING_RATE_G_FINAL,
+    MILESTONES_INITIAL,
+    MILESTONES_FINAL,
+    MILESTONES_STEP,
+    MILESTONES_INITIAL_G,
+    MILESTONES_FINAL_G,
+    MILESTONES_STEP_G,
+)
 
 
 class StyleGAN2(nn.Module):
-    def __init__(self, image_size, label_dim, latent_dim=LATENT_DIM, style_depth=STYLE_DEPTH,
-                 network_capacity=NETWORK_CAPACITY, steps=1, lr=LEARNING_RATE, lr_g=LEARNING_RATE, channels=CHANNELS,
-                 condition_on_mapper=CONDITION_ON_MAPPER, use_biases=USE_BIASES, label_epsilon=LABEL_EPSILON):
+    def __init__(
+        self,
+        image_size,
+        label_dim,
+        latent_dim=LATENT_DIM,
+        style_depth=STYLE_DEPTH,
+        network_capacity=NETWORK_CAPACITY,
+        steps=1,
+        lr=LEARNING_RATE,
+        lr_g=LEARNING_RATE,
+        channels=CHANNELS,
+        condition_on_mapper=CONDITION_ON_MAPPER,
+        use_biases=USE_BIASES,
+        label_epsilon=LABEL_EPSILON,
+        lr_final=LEARNING_RATE_FINAL,
+        lr_g_final=LEARNING_RATE_G_FINAL,
+        milestones_initial=MILESTONES_INITIAL,
+        milestones_final=MILESTONES_FINAL,
+        milestones_step=MILESTONES_STEP,
+        milestones_initial_g=MILESTONES_INITIAL_G,
+        milestones_final_g=MILESTONES_FINAL_G,
+        milestones_step_g=MILESTONES_STEP_G,
+    ):
         super().__init__()
         self.condition_on_mapper = condition_on_mapper
         self.lr = lr
@@ -20,16 +57,34 @@ class StyleGAN2(nn.Module):
         self.steps = steps
         self.ema_updater = EMA(0.99)
 
-        self.S = StyleVectorizer(latent_dim, label_dim, style_depth, condition_on_mapper=self.condition_on_mapper, use_biases=use_biases)
-        self.G = Generator(image_size, latent_dim, label_dim, network_capacity, channels=channels,
-                           condition_on_mapper=self.condition_on_mapper, use_biases=use_biases)
-        self.D = Discriminator(image_size, label_dim, network_capacity=network_capacity, channels=channels,
-                               label_epsilon=label_epsilon)
+        self.S = StyleVectorizer(
+            latent_dim, label_dim, style_depth, condition_on_mapper=self.condition_on_mapper, use_biases=use_biases
+        )
+        self.G = Generator(
+            image_size,
+            latent_dim,
+            label_dim,
+            network_capacity,
+            channels=channels,
+            condition_on_mapper=self.condition_on_mapper,
+            use_biases=use_biases,
+        )
+        self.D = Discriminator(
+            image_size, label_dim, network_capacity=network_capacity, channels=channels, label_epsilon=label_epsilon
+        )
 
-        self.SE = StyleVectorizer(latent_dim, label_dim, style_depth, condition_on_mapper=self.condition_on_mapper,
-                                  use_biases=use_biases)
-        self.GE = Generator(image_size, latent_dim, label_dim, network_capacity, channels=channels,
-                            condition_on_mapper=self.condition_on_mapper, use_biases=use_biases)
+        self.SE = StyleVectorizer(
+            latent_dim, label_dim, style_depth, condition_on_mapper=self.condition_on_mapper, use_biases=use_biases
+        )
+        self.GE = Generator(
+            image_size,
+            latent_dim,
+            label_dim,
+            network_capacity,
+            channels=channels,
+            condition_on_mapper=self.condition_on_mapper,
+            use_biases=use_biases,
+        )
 
         set_requires_grad(self.SE, False)
         set_requires_grad(self.GE, False)
@@ -38,6 +93,19 @@ class StyleGAN2(nn.Module):
         self.G_opt = torch.optim.Adam(generator_params, lr=self.lr_g, betas=(0.5, 0.9))
         self.D_opt = torch.optim.Adam(self.D.parameters(), lr=self.lr, betas=(0.5, 0.9))
 
+        milestones_g = [
+            milestones_initial_g + i * milestones_step_g
+            for i in range((milestones_final_g - milestones_initial_g) // milestones_step_g + 1)
+        ]
+        milestones = [
+            milestones_initial + i * milestones_step
+            for i in range((milestones_final - milestones_initial) // milestones_step + 1)
+        ]
+        gamma_g = pow((lr_g_final / lr_g), 1 / len(milestones_g))
+        gamma = pow((lr_final / lr), 1 / len(milestones))
+        self.G_scheduler = torch.optim.lr_scheduler.MultiStepLR(self.G_opt, milestones=milestones, gamma=gamma_g)
+        self.D_scheduler = torch.optim.lr_scheduler.MultiStepLR(self.D_opt, milestones=milestones, gamma=gamma)
+
         self.use_biases = use_biases
         self._init_weights()
         self.reset_parameter_averaging()
@@ -45,7 +113,7 @@ class StyleGAN2(nn.Module):
     def _init_weights(self):
         for m in self.modules():
             if type(m) in {nn.Conv2d, nn.Linear}:
-                nn.init.kaiming_normal_(m.weight, a=0, mode='fan_in', nonlinearity='leaky_relu')
+                nn.init.kaiming_normal_(m.weight, a=0, mode="fan_in", nonlinearity="leaky_relu")
 
         for block in self.G.blocks:
             nn.init.zeros_(block.to_noise1.weight)
@@ -72,8 +140,16 @@ class StyleGAN2(nn.Module):
 
 
 class Generator(nn.Module):
-    def __init__(self, image_size, latent_dim, label_dim, network_capacity=NETWORK_CAPACITY, channels=CHANNELS,
-                 condition_on_mapper=CONDITION_ON_MAPPER, use_biases=USE_BIASES):
+    def __init__(
+        self,
+        image_size,
+        latent_dim,
+        label_dim,
+        network_capacity=NETWORK_CAPACITY,
+        channels=CHANNELS,
+        condition_on_mapper=CONDITION_ON_MAPPER,
+        use_biases=USE_BIASES,
+    ):
         super().__init__()
         self.condition_on_mapper = condition_on_mapper
         self.image_size = image_size
@@ -96,8 +172,8 @@ class Generator(nn.Module):
                 out_chan,
                 upsample=not_first,
                 upsample_rgb=not_last,
-                channels=channels, 
-                use_biases=use_biases
+                channels=channels,
+                use_biases=use_biases,
             )
             self.blocks.append(block)
 
@@ -115,15 +191,16 @@ class Generator(nn.Module):
 
 
 class Discriminator(nn.Module):
-    def __init__(self, image_size, label_dim, network_capacity=NETWORK_CAPACITY, channels=CHANNELS,
-                 label_epsilon=LABEL_EPSILON):
+    def __init__(
+        self, image_size, label_dim, network_capacity=NETWORK_CAPACITY, channels=CHANNELS, label_epsilon=LABEL_EPSILON
+    ):
         super().__init__()
 
-        self.label_epsilon=label_epsilon
+        self.label_epsilon = label_epsilon
         self.label_dim = label_dim
         num_layers = int(log2(image_size) - 1)
 
-        filters = [channels] + [(network_capacity) * (2 ** i) for i in range(num_layers + 1)]
+        filters = [channels] + [(network_capacity) * (2**i) for i in range(num_layers + 1)]
         chan_in_out = list(zip(filters[0:-1], filters[1:]))
 
         blocks = []
@@ -134,7 +211,6 @@ class Discriminator(nn.Module):
 
         self.blocks = nn.Sequential(*blocks)
         self.to_label = nn.Linear(2 * 2 * filters[-1], label_dim)
-        self.to_real = nn.Linear(2 * 2 * filters[-1], 1)
 
     def forward(self, x, labels):
         labels = labels + self.label_epsilon
@@ -146,13 +222,13 @@ class Discriminator(nn.Module):
         # Se image-size = 32, enton c = network_capacity*16 = 256 e h = w = 2,
         # polo que c*h*w = network_capacity*16*2*2 = network_capacity*64
         # Se network_capacity = 16, entón c*h*w = 16*64 = 1024
-        x = x.reshape(b, -1) 
+        x = x.reshape(b, -1)
 
         last_layer_output = self.to_label(x)
         x_output = torch.sum(last_layer_output * labels, axis=1)
 
         return x_output.squeeze(), last_layer_output.detach()
-    
+
     # Función para obter a representación dunha imaxe no espazo da ultima capa
     def get_unconditional_output(self, x):
         b, *_ = x.shape
@@ -166,9 +242,18 @@ class Discriminator(nn.Module):
 
 
 class GeneratorBlock(nn.Module):
-    def __init__(self, latent_dim, input_channels, filters, upsample=True, upsample_rgb=True, channels=CHANNELS, use_biases=USE_BIASES):
+    def __init__(
+        self,
+        latent_dim,
+        input_channels,
+        filters,
+        upsample=True,
+        upsample_rgb=True,
+        channels=CHANNELS,
+        use_biases=USE_BIASES,
+    ):
         super().__init__()
-        self.upsample = nn.Upsample(scale_factor=2, mode='bilinear', align_corners=False) if upsample else None
+        self.upsample = nn.Upsample(scale_factor=2, mode="bilinear", align_corners=False) if upsample else None
 
         self.to_style1 = nn.Linear(latent_dim, input_channels, bias=use_biases)
         self.to_noise1 = nn.Linear(1, filters, bias=use_biases)
@@ -185,7 +270,7 @@ class GeneratorBlock(nn.Module):
         if self.upsample is not None:
             x = self.upsample(x)
 
-        inoise = inoise[:, :x.shape[2], :x.shape[3], :]
+        inoise = inoise[:, : x.shape[2], : x.shape[3], :]
         noise1 = self.to_noise1(inoise).permute((0, 3, 2, 1))
         noise2 = self.to_noise2(inoise).permute((0, 3, 2, 1))
 
@@ -210,7 +295,7 @@ class DiscriminatorBlock(nn.Module):
             nn.Conv2d(input_channels, filters, 3, padding=1),
             leaky_relu(0.2),
             nn.Conv2d(filters, filters, 3, padding=1),
-            leaky_relu(0.2)
+            leaky_relu(0.2),
         )
 
         self.downsample = nn.Conv2d(filters, filters, 3, padding=1, stride=2) if downsample else None
@@ -231,7 +316,7 @@ class RGBBlock(nn.Module):
         self.to_style = nn.Linear(latent_dim, input_channel, bias=use_biases)
         self.conv = Conv2DMod(input_channel, channels, 1, demod=False)
 
-        self.upsample = nn.Upsample(scale_factor=2, mode='bilinear', align_corners=False) if upsample else None
+        self.upsample = nn.Upsample(scale_factor=2, mode="bilinear", align_corners=False) if upsample else None
         self.normalize = nn.Sigmoid()
 
     def forward(self, x, prev_rgb, istyle):
@@ -243,7 +328,7 @@ class RGBBlock(nn.Module):
 
         if self.upsample is not None:
             x = self.upsample(x)
-        #x = self.normalize(x)
+        # x = self.normalize(x)
 
         return x
 
@@ -257,7 +342,7 @@ class Conv2DMod(nn.Module):
         self.stride = stride
         self.dilation = dilation
         self.weight = nn.Parameter(torch.randn((out_chan, in_chan, kernel, kernel)))
-        nn.init.kaiming_normal_(self.weight, a=0, mode='fan_in', nonlinearity='leaky_relu')
+        nn.init.kaiming_normal_(self.weight, a=0, mode="fan_in", nonlinearity="leaky_relu")
 
     def _get_same_padding(self, size, kernel, dilation, stride):
         return ((size - 1) * (stride - 1) + dilation * (kernel - 1)) // 2
@@ -270,7 +355,7 @@ class Conv2DMod(nn.Module):
         weights = w2 * (w1 + 1)
 
         if self.demod:
-            d = torch.rsqrt((weights ** 2).sum(dim=(2, 3, 4), keepdims=True) + EPSILON)
+            d = torch.rsqrt((weights**2).sum(dim=(2, 3, 4), keepdims=True) + EPSILON)
             weights = weights * d
 
         x = x.reshape(1, -1, h, w)

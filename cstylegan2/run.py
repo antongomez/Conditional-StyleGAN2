@@ -6,25 +6,63 @@ from pathlib import Path
 
 from trainer import Trainer
 
-from config import FOLDER, NAME, NEW, LOAD_FROM, GPU, IMAGE_SIZE, CHANNELS, GPU_BATCH_SIZE, \
-    GRADIENT_BATCH_SIZE, NETWORK_CAPACITY, NUM_TRAIN_STEPS, LEARNING_RATE,PATH_LENGTH_REGULIZER_FREQUENCY, \
-    HOMOGENEOUS_LATENT_SPACE, USE_DIVERSITY_LOSS, SAVE_EVERY,EVALUATE_EVERY, LOG_DIR, \
-    VAL_SIZE, CONDITION_ON_MAPPER, MODELS_DIR, USE_BIASES, LABEL_EPSILON, LATENT_DIM
+from config import (
+    FOLDER,
+    NAME,
+    NEW,
+    LOAD_FROM,
+    GPU,
+    IMAGE_SIZE,
+    CHANNELS,
+    GPU_BATCH_SIZE,
+    GRADIENT_BATCH_SIZE,
+    NETWORK_CAPACITY,
+    NUM_TRAIN_STEPS,
+    LEARNING_RATE,
+    PATH_LENGTH_REGULIZER_FREQUENCY,
+    HOMOGENEOUS_LATENT_SPACE,
+    USE_DIVERSITY_LOSS,
+    SAVE_EVERY,
+    EVALUATE_EVERY,
+    LOG_DIR,
+    VAL_SIZE,
+    CONDITION_ON_MAPPER,
+    MODELS_DIR,
+    USE_BIASES,
+    LABEL_EPSILON,
+    LATENT_DIM,
+    LEARNING_RATE_FINAL,
+    LEARNING_RATE_G_FINAL,
+)
 
-def train_from_folder(folder=FOLDER, name=NAME, new=NEW, load_from=LOAD_FROM, image_size=IMAGE_SIZE,
-                      gpu_batch_size=GPU_BATCH_SIZE, gradient_batch_size=GRADIENT_BATCH_SIZE,
-                      network_capacity=NETWORK_CAPACITY, num_train_steps=NUM_TRAIN_STEPS,
-                      learning_rate=LEARNING_RATE, learning_rate_g=LEARNING_RATE, gpu=GPU, channels=CHANNELS,
-                      path_length_regulizer_frequency=PATH_LENGTH_REGULIZER_FREQUENCY,
-                      homogeneous_latent_space=HOMOGENEOUS_LATENT_SPACE,
-                      use_diversity_loss=USE_DIVERSITY_LOSS,
-                      save_every=SAVE_EVERY,
-                      evaluate_every=EVALUATE_EVERY,
-                      val_size=VAL_SIZE,
-                      condition_on_mapper=CONDITION_ON_MAPPER,
-                      use_biases=USE_BIASES,
-                      label_epsilon=LABEL_EPSILON,
-                      latent_dim=LATENT_DIM,):
+
+def train_from_folder(
+    folder=FOLDER,
+    name=NAME,
+    new=NEW,
+    load_from=LOAD_FROM,
+    image_size=IMAGE_SIZE,
+    gpu_batch_size=GPU_BATCH_SIZE,
+    gradient_batch_size=GRADIENT_BATCH_SIZE,
+    network_capacity=NETWORK_CAPACITY,
+    num_train_steps=NUM_TRAIN_STEPS,
+    learning_rate=LEARNING_RATE,
+    learning_rate_g=LEARNING_RATE,
+    gpu=GPU,
+    channels=CHANNELS,
+    path_length_regulizer_frequency=PATH_LENGTH_REGULIZER_FREQUENCY,
+    homogeneous_latent_space=HOMOGENEOUS_LATENT_SPACE,
+    use_diversity_loss=USE_DIVERSITY_LOSS,
+    save_every=SAVE_EVERY,
+    evaluate_every=EVALUATE_EVERY,
+    val_size=VAL_SIZE,
+    condition_on_mapper=CONDITION_ON_MAPPER,
+    use_biases=USE_BIASES,
+    label_epsilon=LABEL_EPSILON,
+    latent_dim=LATENT_DIM,
+    learning_rate_final=LEARNING_RATE_FINAL,
+    learning_rate_g_final=LEARNING_RATE_G_FINAL,
+):
     """
     Train the conditional stylegan model on the data contained in a folder.
 
@@ -73,51 +111,53 @@ def train_from_folder(folder=FOLDER, name=NAME, new=NEW, load_from=LOAD_FROM, im
     :return:
     """
     gradient_accumulate_every = gradient_batch_size // gpu_batch_size
-    os.environ['CUDA_VISIBLE_DEVICES'] = str(gpu)
+    os.environ["CUDA_VISIBLE_DEVICES"] = str(gpu)
 
-    json_path = Path(MODELS_DIR / name / 'config.json')
+    json_path = Path(MODELS_DIR / name / "config.json")
     os.makedirs(Path(MODELS_DIR / name), exist_ok=True)
     if not new and os.path.exists(json_path):
-        with open(json_path, 'r') as file:
+        with open(json_path, "r") as file:
             config = json.load(file)
     else:
-        config = {'name': name,
-                  'folder': folder,
-                  'batch_size': gpu_batch_size,
-                  'gradient_accumulate_every': gradient_accumulate_every,
-                  'image_size': image_size,
-                  'network_capacity': network_capacity,
-                  'lr': learning_rate,
-                  'lr_g': learning_rate_g,
-                  'channels': channels,
-                  'path_length_regulizer_frequency': path_length_regulizer_frequency,
-                  'homogeneous_latent_space': homogeneous_latent_space,
-                  'use_diversity_loss': use_diversity_loss,
-                  'save_every': save_every,
-                  'evaluate_every': evaluate_every,
-                  'val_size': val_size,
-                  'condition_on_mapper': condition_on_mapper,
-                  'use_biases': use_biases,
-                  'label_epsilon': label_epsilon,
-                  'latent_dim': latent_dim,
-                  }
+        config = {
+            "name": name,
+            "folder": folder,
+            "batch_size": gpu_batch_size,
+            "gradient_accumulate_every": gradient_accumulate_every,
+            "image_size": image_size,
+            "network_capacity": network_capacity,
+            "lr": learning_rate,
+            "lr_g": learning_rate_g,
+            "channels": channels,
+            "path_length_regulizer_frequency": path_length_regulizer_frequency,
+            "homogeneous_latent_space": homogeneous_latent_space,
+            "use_diversity_loss": use_diversity_loss,
+            "save_every": save_every,
+            "evaluate_every": evaluate_every,
+            "val_size": val_size,
+            "condition_on_mapper": condition_on_mapper,
+            "use_biases": use_biases,
+            "label_epsilon": label_epsilon,
+            "latent_dim": latent_dim,
+            "lr_final": learning_rate_final,
+            "lr_g_final": learning_rate_g_final,
+        }
     model = Trainer(**config)
 
     if not new:
         model.load(load_from)
     else:
         model.clear()
-    with open(json_path, 'w') as file:
+    with open(json_path, "w") as file:
         json.dump(config, file, indent=4, sort_keys=True)
 
-    
     file_name = f"{LOG_DIR}/{model.name}/logs_epoch.csv"
 
     print(f"Training steps (epochs): {num_train_steps}")
     model.print_log(0, file_name=file_name)
     for train_step_id in range(num_train_steps - model.epochs):
         model.train()
-        model.print_log(train_step_id+1, file_name=file_name)
+        model.print_log(train_step_id + 1, file_name=file_name)
 
 
 if __name__ == "__main__":
