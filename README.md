@@ -1,147 +1,60 @@
-# A conditional PyTorch StyleGAN2
+# StyGAN2 condicionada en Pytorch para clasificación de imaxes multiespectrais
 
-This repository is an heavily modified/refactored version of [lucidrains](https://github.com/lucidrains)'s [stylegan2-pytorch](https://github.com/lucidrains/stylegan2-pytorch).
+Este repositorio é unha versión do repositorio de [CIA-Oceanix](https://github.com/CIA-Oceanix/Conditional_StyleGAN2_pytorch), que así mesmo, é unha versión modificada do repositorio de [lucidrains](https://github.com/lucidrains/stylegan2-pytorch)
 
-The original version of [StyleGAN2](https://github.com/NVlabs/stylegan2) can be found [here](https://arxiv.org/abs/1912.04958).
+O artigo no que se presenta a arquitectura da [StyleGAN2](https://github.com/NVlabs/stylegan2) pódese atopar [aquí](https://arxiv.org/abs/1912.04958).
 
-Check [our pdf](https://github.com/CIA-Oceanix/Conditional_StyleGAN2_pytorch/blob/master/A_Conditional_Pytorch_StyleGan_V2.pdf) for details about the conditioning.
+# Requisitos
 
-## Abstract
+Proporciónase un arquivo `environment.yml` para crear un entorno conda coas dependencias necesarias. Para crear o entorno, executar:
 
-We release a PyTorch implementation of the second version of the StyleGan2 architecture.  With the addition of a conditional component to the latent vector, we enable the possibility to create pictures from a categorization dataset, by choosing the class of the generated sample.
-
-## Table of Content
-
-- [Abstract](#Abstract)
-- [Table of Content](#Table-of-Content)
-- [Requirements](#Requirements)
-- [How to Use](#How-to-Use)
-    - [Train the Model](#Train-the-Model)
-    - [File system configuration](#File-system-configuration)
-    - [Use the trained model](#Use-the-trained-model)
-
-## Requirements
-
-The script has been tested with Python 3.6.9 and the following packages:
-
-- os
-- glob
-- shutil
-- json
-- random
-- math
-- pathlib (2.3.4)
-- numpy (1.17.0)
-- PIL (1.1.7) 
-- tqdm (4.32.1)
-- fire (0.2.1)
-- torch (1.2.0+cu92)
-- torchvision (0.4.0+cu92)
- 
-## How to Use
-
-
-### Train the Model
-
-Running `python run.py --help` returns the following result:
-
-```
-NAME    
-    run.py - Train the conditional stylegan model on the data contained in a folder.
-
-SYNOPSIS
-    run.py <flags>
-
-DESCRIPTION 
-    Train the conditional stylegan model on the data contained in a folder.
-    
-FLAGS
-    --folder=FOLDER
-        the path to the folder containing either pictures or subfolder with pictures.
-    --name=NAME
-        name of the model. The results (pictures and models) will be saved under this name.
-    --new=NEW
-        True to overwrite the previous results with the same name, else False.
-    --load_from=LOAD_FROM
-        index of the model to import if new is False.
-    --image_size=IMAGE_SIZE
-        size of the picture to generate.
-    --gpu_batch_size=GPU_BATCH_SIZE
-        size of the batch to enter the GPU.
-    --gradient_batch_size=GRADIENT_BATCH_SIZE
-        size of the batch on which we compute the gradient.
-    --network_capacity=NETWORK_CAPACITY
-        basis for the number of filters.
-    --num_train_steps=NUM_TRAIN_STEPS
-        number of steps to train.
-    --learning_rate=LEARNING_RATE
-        learning rate for the training.
-    --gpu=GPU
-        name of the GPU to use, usually '0'.
-    --channels=CHANNELS
-        number of channels of the input images.
-    --path_length_regulizer_frequency=PATH_LENGTH_REGULIZER_FREQUENCY
-        frequency of the path length regulizer.
-    --homogeneous_latent_space=HOMOGENEOUS_LATENT_SPACE
-        choose if the latent space homogeneous or not.
-    --use_diversity_loss=USE_DIVERSITY_LOSS
-        penalize the generator by the lack of std for w.
-    --save_every=SAVE_EVERY
-        number of (gradient) batch after which we save the network.
-    --evaluate_every=EVALUATE_EVERY
-        number of (gradient) batch after which we evaluate the network.
-    --condition_on_mapper=CONDITION_ON_MAPPER
-        whether to use the conditions in the mapper or the generator.
-    --use_biases=USE_BIASES
-        whether to use biases in the mapper or not.
-    --label_epsilon=LABEL_EPSILON
-        epsilon for the discriminator.
+```bash
+conda env create -f environment.yml
 ```
 
-### File system configuration
+# Conxuntos de datos
 
-#### Requirements for the dataset
+Os conxuntos de datos multiespectrais empregados non son de dominio público. Porén, o Grupo de Intelixencial Computacional da Universidade do País Vasco pona disposición do usuario unha serie de conxuntos de datos multiespectrais para a súa descarga que se poden descargar dende [aquí](https://www.ehu.eus/ccwintco/index.php/Hyperspectral_Remote_Sensing_Scenes).
 
-The dataset is read by listing all the subfolders in the provided folder argument. These subfolders will be the labels. 
-The picture must be directly inside these folders and not at higher depth.
+En particular, a rede está preparada para procesar unha destas imaxes multiespectrais: _Pavia University_. Para empregar outro conxunto de datos, é necesario modificar o arquivo `ctyleGAN2/dataset.py` para poder ler a imaxe, os segmentos, os centros e o mapa de clases (_ground truth_).
 
-Suppose that you run the line `python run.py "E:\\mnist" --image_size=32 --channels=1 --name=mnist`:
-- E:
-    - mnist
-        - *0*
-            - *1.png*
-            - *2.png*
-            - [...]
-        - *1*
-        - [...]
-        
-The files/folders in italic do not require particular naming.
-                
-If, for example by using a dataset with 10k or 100k files per label, you have to add a level of depth, you will need to modify the dataset.Dataset class appropriately.
+Os arquivos da imaxe _Pavia University_ deben ser colocados dentro do directorio `data/PAVIA` e deben ser nomeados do seguinte xeito:
 
-#### Location of the outputs
+- Imaxe: `pavia_university.raw`.
+- Ground Truth: `pavia_university_gt.pgm`.
+- Mapa de segemntos: `pavia_university_seg.raw`.
+- Centros dos segementos: `pavia_university_seg_centers.raw`.
 
-By default, the outputs folders will be located in the same folder *run.py*. There will two kinds of outputs:
-- **the configuration and the checkpoints**, named *./{MODELS_DIR}/{NAME}/config.json* and *./{MODELS_DIR}/{NAME}/model_{i}.pt* where {MODELS_DIR} (by default *models*) is the variable of the same name defined in *config.py*, *{NAME}* the argument in the command line and *{i}* the index of the checkpoint, which is the batch index divided by the *SAVE_EVERY* variable defined in *config.py*.
-- **the generated samples**, named *./{RESULTS_DIR}/{NAME}/{i}.png* and  *./{RESULTS_DIR}/{NAME}/{i}-EMA.png* where *{RESULTS_DIR} (by default *results*) is the variable of the same name in *config.py*, *{NAME}* the argument in the command line and *{i}* is the index of the samples, which is the batch index divided by the *EVALUATE_EVERY* variable defined in *config.py*.
+Ademais, a rede tamén funciona con conxuntos de datos con imaxes RGB ou en branco e negro. No directorio `datasets` inclúese o conxutno de datos MNIST.
 
+# Funcionamento
 
-### Use the trained model
+## MNIST
 
-When the models are trained, you can impor the weights and the checkpoint quite easily
+Dentro do directorio `aux` hai unha serie de scripts de bash. O script `1_mnist` permite adestrar o modelo co conxunto de datos MNIST:
 
-```python
-root = 'models'  # what you used as MODEL_DIR
-name = 'mnist'  # what you used as name
-
-with open(os.path.join(root, name, 'config.json'), 'r') as file:
-    config = json.load(file)
-model = Trainer(**config)
-model.load(-1, root=root)  # the first argument is the index of the checkpoint, -1 means the last checkpoint
-
-
-model.set_evaluation_parameters(labels_to_evaluate=None, reset=True, total=64)  # you can set the latents, the noise or the labels
-generated_images, average_generated_images = model.evaluate()
+```bash
+bash aux/1_mnist.sh
 ```
 
-If you want to play a little, you can find a pre-trained model in *./models/gochiusa64*.
+Este script permite modificar o número de _train steps_, así como o _learning rate_ do discriminador e do xerador. Os parámetros _save every_ e _evaluate every_ permiten establecer cada cantos _batches_ se almacenan os peso do modelo e se xeran unha serie de imaxes por clase co modelo, respectivamente.
+
+## PAVIA
+
+Dentro do directorio `aux` tamén se proporciona un script para realizar un adestramento coa imaxe multiespectral _Pavia University_. Para iso, é necesario descargala dende [aquí](https://www.ehu.eus/ccwintco/index.php/Hyperspectral_Remote_Sensing_Scenes) e nomear os arquivos como se indicou.
+
+Para avaliar a precisión a nivel de píxel pode empregarse o script de Python `cstylegan2/test_D.py`.
+
+# Réplica dos experimentos
+
+No caso de dispoñer dos conxuntos de datos multiespectrais correspondentes aos 8 ríos galegos cos que se desenvolveron os experimentos, estes pódense reporducir executando os scripts de bash dentro do directorio `aux`:
+
+- Experimento 1: `1_mnist.sh`.
+- Experimento 2-1: `2_1_learning_rate.sh`.
+- Experimento 2-2: `2_2_network_capacity.sh`.
+- Experimento 2-3: `2_3_ada_learning_rate.sh`.
+- Experimento 3: `3_all_datasets.sh`.
+
+# Licenza
+
+Este repositorio está baixo a licenza Nvidia Source Code License-NC. Ver o arquivo `LICENSE` para máis información.
