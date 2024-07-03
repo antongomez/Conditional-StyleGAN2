@@ -31,23 +31,23 @@ Ademais, a rede tamén funciona con conxuntos de datos con imaxes RGB ou en bran
 
 ## MNIST
 
-Dentro do directorio `aux` hai unha serie de scripts de bash. O script `1_mnist` permite adestrar o modelo co conxunto de datos MNIST:
+Dentro do directorio `scripts` hai unha serie de scripts de bash. O script `1_mnist` permite adestrar o modelo co conxunto de datos MNIST:
 
 ```bash
-bash aux/1_mnist.sh
+bash scripts/1_mnist.sh
 ```
 
 Este script permite modificar o número de _train steps_, así como o _learning rate_ do discriminador e do xerador. Os parámetros _save every_ e _evaluate every_ permiten establecer cada cantos _batches_ se almacenan os peso do modelo e se xeran unha serie de imaxes por clase co modelo, respectivamente.
 
 ## PAVIA
 
-Dentro do directorio `aux` tamén se proporciona un script para realizar un adestramento coa imaxe multiespectral _Pavia University_. Para iso, é necesario descargala dende [aquí](https://www.ehu.eus/ccwintco/index.php/Hyperspectral_Remote_Sensing_Scenes) e nomear os arquivos como se indicou.
+Dentro do directorio `scripts` tamén se proporciona un script para realizar un adestramento coa imaxe multiespectral _Pavia University_. Para iso, é necesario descargala dende [aquí](https://www.ehu.eus/ccwintco/index.php/Hyperspectral_Remote_Sensing_Scenes) e nomear os arquivos como se indicou.
 
 Para avaliar a precisión a nivel de píxel pode empregarse o script de Python `cstylegan2/test_D.py`.
 
 # Réplica dos experimentos
 
-No caso de dispoñer dos conxuntos de datos multiespectrais correspondentes aos 8 ríos galegos cos que se desenvolveron os experimentos, estes pódense reporducir executando os scripts de bash dentro do directorio `aux`:
+No caso de dispoñer dos conxuntos de datos multiespectrais correspondentes aos 8 ríos galegos cos que se desenvolveron os experimentos, estes pódense reporducir executando os scripts de bash dentro do directorio `scripts`:
 
 - Experimento 1: `1_mnist.sh`.
 - Experimento 2-1: `2_1_learning_rate.sh`.
