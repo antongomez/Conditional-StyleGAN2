@@ -1,5 +1,4 @@
 # Ignore datasets and results of training and evaluation
-data
 results
 models
 graphics
@@ -11,9 +10,17 @@ test*
 *.jpg
 
 *pycache*
+*.vscode
 
-# Ignore scripts to generate datasets
-genData*
-*.sh
+# Ignore auxiliary scripts
+1_runScript.sh
 
-*.md
+# Ignore not public hyperdatasets
+data/OITAVEN
+data/EIRAS
+data/ERMIDAS
+data/FERREIRAS
+data/MERA
+data/XESTA
+data/MESTAS
+data/ULLA
