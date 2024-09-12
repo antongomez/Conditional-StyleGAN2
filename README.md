@@ -1,77 +1,76 @@
-# StyGAN2 condicionada en Pytorch para clasificación de imaxes multiespectrais
+# StyleGAN2 Conditioned in Pytorch for Multispectral Image Classification
 
-Este repositorio é unha versión do repositorio de [CIA-Oceanix](https://github.com/CIA-Oceanix/Conditional_StyleGAN2_pytorch), que así mesmo, é unha versión modificada do repositorio de [lucidrains](https://github.com/lucidrains/stylegan2-pytorch). O artigo no que se presenta a arquitectura da [StyleGAN2](https://github.com/NVlabs/stylegan2) pódese atopar [aquí](https://arxiv.org/abs/1912.04958).
+This repository is a conditioned version of [lucidrains' repository](https://github.com/lucidrains/stylegan2-pytorch). The paper presenting the StyleGAN2 architecture can be found [here](https://arxiv.org/abs/1912.04958).
 
-# Descripción do uso da rede :ledger:
+## Network Usage Description :ledger:
 
-Utilizouse esta rede para clasificar imaxes multiespectrais de ríos galegos obtidas mediante teledetección. As imaxes foron tomadas co obxectivo de monitorizar automaticamente as cuncas dos ríos de Galicia. Especificamente,
-preténdese determinar o estado da vexetación, identificar áreas ocupadas por especies invasoras e detectar estruturas artificiais que ocupan a cunca do río empregando imaxes multiespectrais.
+This network was used to classify multispectral images of Galician rivers obtained through remote sensing. The images were taken with the aim of automatically monitoring the river basins of Galicia. Specifically, the goal is to determine the state of the vegetation, identify areas occupied by invasive species, and detect artificial structures that occupy the river basin using multispectral images.
 
-En particular, trátase de 8 imaxes de alta resolución multiespectral que foron utilizadas [neste artigo](https://www.mdpi.com/2072-4292/13/14/2687) para avaliar diversos algoritmos de segmentación e de clasificación. As imaxes están formadas por cinco bandas correspondentes ás lonxitudes de onda de 475 nm (azul), 560 nm (verde), 668 nm (vermello), 717 nm (red-edge) e 840 nm (infravermello próximo).
+In particular, these are 8 high-resolution multispectral images that were used in this paper to evaluate various segmentation and classification algorithms. The images consist of five bands corresponding to the following wavelengths: 475 nm (blue), 560 nm (green), 668 nm (red), 717 nm (red-edge), and 840 nm (near-infrared).
 
-Estes conxuntos de datos presentan dous principais problemas:
+These datasets present two main challenges:
 
- - Grande desbalanceo de mostras entre clases.
- - Escaseza de mostras dalgunhas clases.
+- Large sample imbalance between classes.
+- Scarcity of samples for some classes.
 
-Deste xeito, utilizouse esta GAN co obxectivo de intentar facer fronte a estes problemas aumentando o conxunto de datos mediante o xerador e utilizando o discrimiandor como clasificador. Os resultados obtidos son peores do esperado e son similares aos obtidos mediante unha rede convolucional estándar.
+Thus, this GAN was used to try to address these issues by augmenting the dataset with the generator and using the discriminator as a classifier. The results obtained were worse than expected and similar to those achieved using a standard convolutional network.
 
-## Liñas futuras :telescope:
+### Future Directions :telescope:
 
- - [ ] Facer un estudo máis profundo sobre a influencia do desbalanceamento dos conxuntos de datos no rendemento da StyleGAN2 condicionada en problemas de clasificación e xeración de imaxes condicionadas a unha etiqueta de clase.
- - [ ] Explorar diferentes modificacións sobre a arquitectura da StyleGAN2 condicionada para mellorar o seu rendemento en problemas de clasificación, como as que presenta a [ResBaGAN](https://github.com/alvrogd/ResBaGAN).
+- [ ] Conduct a deeper study on the influence of dataset imbalance on the performance of the conditioned StyleGAN2 in classification and image generation problems conditioned on a class label.
+- [ ] Explore different modifications to the conditioned StyleGAN2 architecture to improve its performance in classification problems, such as those presented by ResBaGAN.
 
-# Requisitos :page_with_curl:
+## Requirements :page_with_curl:
 
-Proporciónase un arquivo `environment.yml` para crear un entorno conda coas dependencias necesarias. Para crear o entorno, executar:
+An `environment.yml` file is provided to create a Conda environment with the necessary dependencies. To create the environment, run:
 
 ```bash
 conda env create -f environment.yml
 ```
 
-# Conxuntos de datos :file_folder:
+## Datasets :file_folder:
 
-Os conxuntos de datos multiespectrais empregados non son de dominio público. Porén, o Grupo de Intelixencial Computacional da Universidade do País Vasco pona disposición do usuario unha serie de conxuntos de datos multiespectrais para a súa descarga que se poden descargar dende esta [carpeta de OneDrive](https://nubeusc-my.sharepoint.com/personal/anton_gomez_lopez_rai_usc_es/_layouts/15/onedrive.aspx?sw=bypass&bypassReason=abandoned&id=%2Fpersonal%2Fanton%5Fgomez%5Flopez%5Frai%5Fusc%5Fes%2FDocuments%2FTFG%2FStyleGAN2%2Dcondicionada%2Dclasificacion%2Fdata%2FPAVIA&ga=1) ou dende a [páxina do grupo](https://www.ehu.eus/ccwintco/index.php/Hyperspectral_Remote_Sensing_Scenes).
+The multispectral datasets used are not publicly available. However, the Computational Intelligence Group at the University of the Basque Country provides a series of multispectral datasets for download, which can be accessed through this [OneDrive folder](<(https://nubeusc-my.sharepoint.com/personal/anton_gomez_lopez_rai_usc_es/_layouts/15/onedrive.aspx?sw=bypass&bypassReason=abandoned&id=%2Fpersonal%2Fanton%5Fgomez%5Flopez%5Frai%5Fusc%5Fes%2FDocuments%2FTFG%2FStyleGAN2%2Dcondicionada%2Dclasificacion%2Fdata%2FPAVIA&ga=1)>) or from the [group's page](https://www.ehu.eus/ccwintco/index.php/Hyperspectral_Remote_Sensing_Scenes).
 
-En particular, a rede está preparada para procesar unha destas imaxes multiespectrais: _Pavia University_. Para empregar outro conxunto de datos, é necesario modificar o arquivo `ctyleGAN2/dataset.py` para poder ler a imaxe, os segmentos, os centros e o mapa de clases (_ground truth_).
+In particular, the network is prepared to process one of these multispectral images: _Pavia University_. To use another dataset, it is necessary to modify the `ctyleGAN2/dataset.py` file to be able to read the image, the segments, the centers, and the class map (ground truth).
 
-Os arquivos da imaxe _Pavia University_ deben ser colocados dentro do directorio `data/PAVIA` e deben ser nomeados do seguinte xeito:
+The Pavia University image files must be placed in the data/PAVIA directory and named as follows:
 
-- Imaxe: `pavia_university.raw`.
+- Image: `pavia_university.raw`.
 - Ground Truth: `pavia_university_gt.pgm`.
-- Mapa de segemntos: `pavia_university_seg.raw`.
-- Centros dos segementos: `pavia_university_seg_centers.raw`.
+- Segment Map: `pavia_university_seg.raw`.
+- Segment Centers: `pavia_university_seg_centers.raw`.
 
-Ademais, a rede tamén funciona con conxuntos de datos con imaxes RGB ou en branco e negro. No directorio `datasets` inclúese o conxutno de datos MNIST.
+Additionally, the network also works with datasets that contain RGB or black-and-white images. The `datasets` directory includes the MNIST dataset.
 
-# Uso :wrench:
+## Usage :wrench:
 
-## MNIST
+### MNIST
 
-Dentro do directorio `scripts` hai unha serie de scripts de bash. O script `1_mnist` permite adestrar o modelo co conxunto de datos MNIST:
+Within the scripts directory, there are several bash scripts. The 1_mnist script allows training the model with the MNIST dataset:
 
 ```bash
 bash scripts/1_mnist.sh
 ```
 
-Este script permite modificar o número de _train steps_, así como o _learning rate_ do discriminador e do xerador. Os parámetros _save every_ e _evaluate every_ permiten establecer cada cantos _batches_ se almacenan os peso do modelo e se xeran unha serie de imaxes por clase co modelo, respectivamente.
+This script allows modifying the number of train steps, as well as the learning rate of the discriminator and the generator. The save every and evaluate every parameters allow setting how many batches are processed before saving the model weights and generating a series of images per class, respectively.
 
-## PAVIA
+### PAVIA
 
-Dentro do directorio `scripts` tamén se proporciona un script para realizar un adestramento coa imaxe multiespectral _Pavia University_. Para iso, é necesario descargala dende [aquí](https://nubeusc-my.sharepoint.com/personal/anton_gomez_lopez_rai_usc_es/_layouts/15/onedrive.aspx?view=0&id=%2Fpersonal%2Fanton%5Fgomez%5Flopez%5Frai%5Fusc%5Fes%2FDocuments%2FTFG%2FStyleGAN2%2Dcondicionada%2Dclasificacion%2Fdata%2FPAVIA).
+Within the scripts directory, a script is also provided to perform training with the Pavia University multispectral image. To do this, it is necessary to download it from [here](https://nubeusc-my.sharepoint.com/personal/anton_gomez_lopez_rai_usc_es/_layouts/15/onedrive.aspx?view=0&id=%2Fpersonal%2Fanton%5Fgomez%5Flopez%5Frai%5Fusc%5Fes%2FDocuments%2FTFG%2FStyleGAN2%2Dcondicionada%2Dclasificacion%2Fdata%2FPAVIA).
 
-Para avaliar a precisión a nivel de píxel pode empregarse o script de Python `cstylegan2/test_D.py`.
+To evaluate pixel-level accuracy, the `cstylegan2/test_D.py` Python script can be used.
 
-# Réplica dos experimentos :bar_chart:
+## Experiment Replication :bar_chart:
 
-No caso de dispoñer dos conxuntos de datos multiespectrais correspondentes aos 8 ríos galegos cos que se desenvolveron os experimentos, estes pódense reporducir executando os scripts de bash dentro do directorio `scripts`:
+If you have access to the multispectral datasets corresponding to the 8 Galician rivers used in the experiments, they can be reproduced by running the bash `scripts` located in the scripts directory:
 
-- Experimento 1: `1_mnist.sh`.
-- Experimento 2-1: `2_1_learning_rate.sh`.
-- Experimento 2-2: `2_2_network_capacity.sh`.
-- Experimento 2-3: `2_3_ada_learning_rate.sh`.
-- Experimento 3: `3_all_datasets.sh`.
+- Experiment 1: 1_mnist.sh.
+- Experiment 2-1: 2_1_learning_rate.sh.
+- Experiment 2-2: 2_2_network_capacity.sh.
+- Experiment 2-3: 2_3_ada_learning_rate.sh.
+- Experiment 3: 3_all_datasets.sh.
 
-# Licenza :memo:
+## License :memo:
 
-Este repositorio está baixo a licenza Nvidia Source Code License-NC. Ver o arquivo `LICENSE` para máis información.
+This repository is under the GNU General Public License v3.0. See the `LICENSE` file for more details.
