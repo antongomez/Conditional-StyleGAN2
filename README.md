@@ -1,3 +1,9 @@
+<!--
+SPDX-FileCopyrightText: 2024 2024, Antón Gómez López
+
+SPDX-License-Identifier: GPL-3.0-or-later
+-->
+
 # StyleGAN2 Conditioned in Pytorch for Multispectral Image Classification
 
 This repository is a conditioned version of [lucidrains' repository](https://github.com/lucidrains/stylegan2-pytorch). The paper presenting the StyleGAN2 architecture can be found [here](https://arxiv.org/abs/1912.04958).

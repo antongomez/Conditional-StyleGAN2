@@ -1,5 +1,9 @@
 #!/bin/bash
 
+# SPDX-FileCopyrightText: 2024 2024, Antón Gómez López
+#
+# SPDX-License-Identifier: GPL-3.0-or-later
+
 lr=0.0002
 lr_g=0.000025
 nc=16

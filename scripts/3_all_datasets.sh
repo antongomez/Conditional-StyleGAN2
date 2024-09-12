@@ -1,4 +1,9 @@
 #!/bin/bash
+
+# SPDX-FileCopyrightText: 2024 2024, Antón Gómez López
+#
+# SPDX-License-Identifier: GPL-3.0-or-later
+
 k=41
 # datasets=("OITAVEN" "XESTA" "EIRAS" "ERMIDAS" "FERREIRAS" "MESTAS" "MERA" "ULLA")
 datasets=("ULLA")

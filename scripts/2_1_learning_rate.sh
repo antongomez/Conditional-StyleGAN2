@@ -1,5 +1,9 @@
 #!/bin/bash
 
+# SPDX-FileCopyrightText: 2024 2024, Antón Gómez López
+#
+# SPDX-License-Identifier: GPL-3.0-or-later
+
 learning_rates=(0.0002 0.0001 0.00005 0.000025)
 # learning_rates_g=(0.0002 0.0001 0.00005 0.000025)
 learning_rates_g=(0.000025)
