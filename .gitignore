@@ -15,6 +15,7 @@ test*
 
 *pycache*
 *.vscode
+*_venv
 
 # Ignore auxiliary scripts
 1_runScript.sh

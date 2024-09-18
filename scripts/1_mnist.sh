@@ -39,7 +39,7 @@ for ((i=0; i<${#learning_rates_g[@]}; i++)); do
         echo "Training with learning rates: $lr and $lr_g (name: $n)"
 
         python cstylegan2/run.py $folder --channels=$channels --learning_rate=$lr --learning_rate_g=$lr_g --num_train_steps=$num_train_steps --evaluate_every=$evaluate_every --save_every=$save_every --val_size=$val_size --name=$n
-        python aux/genDataGraphics.py --name $n
+        python aux/gen_data_graphics.py --name $n
         k=$((k+1))
     done
 done

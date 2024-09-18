@@ -51,7 +51,7 @@ for ((i=0; i<${#learning_rates_g[@]}; i++)); do
         echo "Final learning rates: $lr_final and $lr_g_final"
 
         python cstylegan2/run.py $folder --channels=$channels --learning_rate_final=$lr_final --learning_rate_g_final=$lr_g_final --learning_rate=$lr --learning_rate_g=$lr_g --num_train_steps=$num_train_steps --evaluate_every=$evaluate_every --save_every=$save_every --name=$n
-        python aux/genDataGraphics.py --name $n --min-epoch=4
+        python aux/gen_data_graphics.py --name $n --min-epoch=4
         k=$((k+1))
     done
 done
