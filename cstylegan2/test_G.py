@@ -37,8 +37,10 @@ model.load(model_number, root=root)  # the first argument is the index of the ch
 
 hyperdataset = True if config["channels"] > 4 else False
 
+label_dim = model.label_dim
+
 # 5 images of each class
-labels_to_evaluate = np.array([np.eye(10)[i % 10] for i in range(50)])
+labels_to_evaluate = np.array([np.eye(label_dim)[i % label_dim] for i in range(5 * label_dim)])
 
 
 model.set_evaluation_parameters(
@@ -54,7 +56,13 @@ def tensor_index_select(tensor, dim=0, index=tensor([2, 1, 0])):
 # Save the images
 os.makedirs("./results", exist_ok=True)
 for i, tensor_image in enumerate(generated_images):
-    save_image(tensor_index_select(tensor_image.cpu()), f"{save_generated}/class_{i % 10}_{i}.png")
+    save_image(
+        tensor_index_select(tensor_image.cpu()), f"{save_generated}/class_{i % label_dim}_{i}.png", normalize=True
+    )
 
 for i, tensor_image in enumerate(average_generated_images):
-    save_image(tensor_index_select(tensor_image.cpu()), f"{save_average_generated}/image_{i % 10}_{i}.png")
+    save_image(
+        tensor_index_select(tensor_image.cpu()),
+        f"{save_average_generated}/image_{i % label_dim}_{i}.png",
+        normalize=True,
+    )
