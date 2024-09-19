@@ -10,7 +10,6 @@ graphics
 test*
 *.csv
 *.txt
-*.png
 *.jpg
 
 *pycache*
