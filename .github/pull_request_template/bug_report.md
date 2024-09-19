@@ -4,13 +4,6 @@ SPDX-FileCopyrightText: 2024, Antón Gómez López
 SPDX-License-Identifier: GPL-3.0-or-later
 -->
 
----
-name: Bug report
-about: Create a report to help us improve
-title: ""
-labels: ""
----
-
 ## Description
 
 **Describe the bug**

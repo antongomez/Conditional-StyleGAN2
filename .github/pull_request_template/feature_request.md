@@ -4,13 +4,6 @@ SPDX-FileCopyrightText: 2024, Antón Gómez López
 SPDX-License-Identifier: GPL-3.0-or-later
 -->
 
----
-name: Feature request
-about: Suggest an idea for this project
-title: ""
-labels: ""
----
-
 ## Description
 
 **Is your feature request related to a problem? Please describe.**
