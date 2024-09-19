@@ -50,11 +50,11 @@ conda env create -f environment.yml
 
 ## Datasets :file_folder:
 
-The multispectral datasets used are not yet publicly available. However, the Computational Intelligence Group at the University of the Basque Country provides a series of multispectral datasets for download, which can be accessed through this [OneDrive folder](https://nubeusc-my.sharepoint.com/personal/anton_gomez_lopez_rai_usc_es/_layouts/15/onedrive.aspx?sw=bypass&bypassReason=abandoned&id=%2Fpersonal%2Fanton%5Fgomez%5Flopez%5Frai%5Fusc%5Fes%2FDocuments%2FTFG%2FStyleGAN2%2Dcondicionada%2Dclasificacion%2Fdata%2FPAVIA&ga=1) or from the [group's page](https://www.ehu.eus/ccwintco/index.php/Hyperspectral_Remote_Sensing_Scenes).
+The multispectral datasets used are not yet publicly available. However, the Computational Intelligence Group at the University of the Basque Country provides a series of multispectral datasets. You can find more information in the [group's page](https://www.ehu.eus/ccwintco/index.php/Hyperspectral_Remote_Sensing_Scenes).
 
-In particular, the network is prepared to process one of these multispectral images: _Pavia University_. To use another dataset, it is necessary to modify the `ctyleGAN2/dataset.py` file to be able to read the image, the segments, the centers, and the class map (ground truth).
+In particular, the network is prepared to process one of these multispectral images: _Pavia University_. It is possible to download all necessary files (including the segmented image and the centres) from this [OneDrive folder](https://nubeusc-my.sharepoint.com/personal/anton_gomez_lopez_rai_usc_es/_layouts/15/onedrive.aspx?sw=bypass&bypassReason=abandoned&id=%2Fpersonal%2Fanton%5Fgomez%5Flopez%5Frai%5Fusc%5Fes%2FDocuments%2FTFG%2FStyleGAN2%2Dcondicionada%2Dclasificacion%2Fdata%2FPAVIA&ga=1).
 
-The Pavia University image files must be placed in the data/PAVIA directory and named as follows:
+The Pavia University image files must be placed in the `data/PAVIA` directory and named as follows:
 
 - Image: `pavia_university.raw`.
 - Ground Truth: `pavia_university_gt.pgm`.
@@ -85,13 +85,13 @@ _Pavia University Ground Truth_
 As seen in the ground truth, there are some black pixels, which means they are not labeled. The classes present are the following:
 
 - <div style="display: flex; align-items: center">Asphalt: raspberry red <span style="display: inline-block; width: 15px; height: 15px; background-color: #e6194b; border-radius: 50%; margin-left: 8px"></span></div>
-- <div style="display: flex; align-items: center">Wasteland: green <span style="display: inline-block; width: 15px; height: 15px; background-color: #3cb44b; border-radius: 50%; margin-left: 8px"></span></div>
-- <div style="display: flex; align-items: center">Building 1: yellow <span style="display: inline-block; width: 15px; height: 15px; background-color: #ffe119; border-radius: 50%; margin-left: 8px"></span></div>
+- <div style="display: flex; align-items: center">Meadows: green <span style="display: inline-block; width: 15px; height: 15px; background-color: #3cb44b; border-radius: 50%; margin-left: 8px"></span></div>
+- <div style="display: flex; align-items: center">Gravel: yellow <span style="display: inline-block; width: 15px; height: 15px; background-color: #ffe119; border-radius: 50%; margin-left: 8px"></span></div>
 - <div style="display: flex; align-items: center">Trees: blue <span style="display: inline-block; width: 15px; height: 15px; background-color: #0082c8; border-radius: 50%; margin-left: 8px"></span></div>
-- <div style="display: flex; align-items: center">Building 2: orange <span style="display: inline-block; width: 15px; height: 15px; background-color: #f58230; border-radius: 50%; margin-left: 8px"></span></div>
-- <div style="display: flex; align-items: center">Wasteland 2: purple <span style="display: inline-block; width: 15px; height: 15px; background-color: #911eb4; border-radius: 50%; margin-left: 8px"></span></div>
-- <div style="display: flex; align-items: center">Building 3: light blue <span style="display: inline-block; width: 15px; height: 15px; background-color: #46f0f0; border-radius: 50%; margin-left: 8px"></span></div>
-- <div style="display: flex; align-items: center">Car park: light purple <span style="display: inline-block; width: 15px; height: 15px; background-color: #f032e6; border-radius: 50%; margin-left: 8px"></span></div>
+- <div style="display: flex; align-items: center">Metal: orange <span style="display: inline-block; width: 15px; height: 15px; background-color: #f58230; border-radius: 50%; margin-left: 8px"></span></div>
+- <div style="display: flex; align-items: center">Bare soil: purple <span style="display: inline-block; width: 15px; height: 15px; background-color: #911eb4; border-radius: 50%; margin-left: 8px"></span></div>
+- <div style="display: flex; align-items: center">Bitumen: light blue <span style="display: inline-block; width: 15px; height: 15px; background-color: #46f0f0; border-radius: 50%; margin-left: 8px"></span></div>
+- <div style="display: flex; align-items: center">Bricks: light purple <span style="display: inline-block; width: 15px; height: 15px; background-color: #f032e6; border-radius: 50%; margin-left: 8px"></span></div>
 - <div style="display: flex; align-items: center">Shadows: light yellow <span style="display: inline-block; width: 15px; height: 15px; background-color: #d2f53c; border-radius: 50%; margin-left: 8px"></span></div>
 
 ## Usage :wrench:
@@ -120,7 +120,69 @@ After cloning the repo, installing the dependencies, and downloading the Pavia U
 python cstylegan2/run.py data/PAVIA --channels=5 --num_train_steps=100 --evaluate_every=44 --save_every=44 --name=PAVIA
 ```
 
-First, the dataset will be loaded, consisting of a high-resolution multispectral image of Pavia University. The network uses 32x32 pixel patches from the multispectral image, centered on the segments defined in the `pavia_university_seg_centers.raw` file.
+First, the dataset will be loaded, consisting of a high-resolution multispectral image of Pavia University. The network uses 32x32 pixel patches from the multispectral image, centred on the segments defined in the `pavia_university_seg_centers.raw` file.
+
+As the image has 5 channels, the `--channels=5` flag specifies this. The dataset is split into training and validation sets, with the following default split:
+
+- Training set: 15% of each class.
+- Validation set: 5% of each class.
+
+The network will train for 100 steps, saving a model every epoch (44 batches). If you modify the batch size and still want to save a model per epoch, adjust the number of steps for saving and evaluation by dividing the total number of batches by the batch size.
+
+During training, the network generates a mosaic of images every 44 batches (effectively after each epoch). This mosaic contains 8 generated images for each of the 9 classes in this classification problem. Initially, the generated images will be quite noisy, but as training progresses, the quality of the generated images will improve significantly.
+
+<div style="display: flex; justify-content: center; text-align: center;">
+  <div style="margin-right: 10px;">
+
+![Generated patches in epoch 10](images/epoch_10.png)
+
+_Generated patches in epoch 10_
+
+  </div>
+  <div style="margin-left: 10px;">
+
+![Generated patches in epoch 100](images/epoch_100.png)
+
+_Generated patches in epoch 100_
+
+  </div>
+  <div style="margin-left: 10px;">
+
+![Real patches of the Pavia University image](images/reals_pavia.png)
+
+_Real patches of the Pavia University image_
+
+  </div>
+</div>
+
+After training is complete, you can generate images conditioned on specific class labels. The `cstylegan2/test_G.py` script allows you to generate images for each class in the dataset. This script accepts two parameters:
+
+- **name**: The name used during training, in this case, `PAVIA`.
+- **model** (optional): The number of the saved model to use. If not specified, the latest saved model will be used.
+
+To run the script and generate images, use the following command:
+
+```bash
+python cstylegan2/test_G.py --name=PAVIA
+```
+
+The script will generate 8 images for each class in the dataset. These images will be saved in the `test/PAVIA/G` directory.
+
+For the classification task, the network logs the overall accuracy and class-wise accuracy for both the training and validation sets each time a model is saved. To identify the best model from the training process, you can use the `select_best_model.py` script. This script analyses the validation log files and selects the model with the highest average accuracy.
+
+The script returns the model number with the highest average accuracy. To evaluate this model, use the test_D.py script, which accepts the following parameters:
+
+- **folder**: The directory where the dataset is stored, e.g., `data/PAVIA`.
+- **name**: The name used for training the network, e.g., `PAVIA`.
+- **model**: The number of the best model selected during training.
+
+To evaluate the best saved model, run the following command:
+
+```bash
+python cstylegan2/test_D.py data/PAVIA --folder=data/PAVIA --name=PAVIA --model=NUMBER_OF_THE_BEST_MODEL
+```
+
+The script will output the overall accuracy, average accuracy per class, and the accuracy for each individual class.
 
 ## License :memo:
 
