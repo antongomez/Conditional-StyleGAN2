@@ -1,7 +1,7 @@
 Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
-Upstream-Name: Conditioned-StyleGAN2
+Upstream-Name: Conditional-StyleGAN2
 Upstream-Contact: Antón Gómez López antongomez03@gmail.com
-Source: https://github.com/antongomez/Conditioned-StyleGAN2
+Source: https://github.com/antongomez/Conditional-StyleGAN2
 
 Files: \*
 Copyright: 2024, Antón Gómez López
