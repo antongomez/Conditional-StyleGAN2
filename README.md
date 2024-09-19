@@ -4,7 +4,7 @@ SPDX-FileCopyrightText: 2024, Antón Gómez López
 SPDX-License-Identifier: GPL-3.0-or-later
 -->
 
-# StyleGAN2 Conditioned in Pytorch for Multispectral Image Classification
+# Conditional StyleGAN2 in Pytorch for Multispectral Image Classification
 
 This repository is a conditioned version of [lucidrains' repository](https://github.com/lucidrains/stylegan2-pytorch). The paper presenting the StyleGAN2 architecture can be found [here](https://arxiv.org/abs/1912.04958).
 
@@ -27,11 +27,11 @@ The network's ability to classify multispectral images was evaluated in the foll
 
 If you have access to the multispectral datasets corresponding to the 8 Galician rivers used in the experiments, they can be reproduced by running the bash `scripts` located in the scripts directory:
 
-- Experiment 1: 1_mnist.sh.
-- Experiment 2-1: 2_1_learning_rate.sh.
-- Experiment 2-2: 2_2_network_capacity.sh.
-- Experiment 2-3: 2_3_ada_learning_rate.sh.
-- Experiment 3: 3_all_datasets.sh.
+- Experiment 1: `1_mnist.sh`.
+- Experiment 2-1: `2_1_learning_rate.sh`.
+- Experiment 2-2: `2_2_network_capacity.sh`.
+- Experiment 2-3: `2_3_ada_learning_rate.sh`.
+- Experiment 3: `3_all_datasets.sh`.
 
 ### Future Directions :telescope:
 
@@ -45,6 +45,8 @@ An `environment.yml` file is provided to create a Conda environment with the nec
 ```bash
 conda env create -f environment.yml
 ```
+
+**Note**: A GPU with CUDA support is required to run the network. All experiments were conducted on a TESLA T4 GPU with 16GB of memory.
 
 ## Datasets :file_folder:
 
@@ -60,6 +62,37 @@ The Pavia University image files must be placed in the data/PAVIA directory and 
 - Segment Centers: `pavia_university_seg_centers.raw`.
 
 Additionally, the network also works with datasets that contain RGB or black-and-white images. The `datasets` directory includes the MNIST dataset.
+
+The multispectral image of Pavia University can be visualized by extracting the RGB channels. Additionally, the ground truth can be used to see which pixels belong to each class.
+
+<div style="display: flex; justify-content: center; text-align: center;">
+  <div style="margin-right: 10px;">
+
+![Pavia University Multispectral Image](images/pavia_raw.png)
+
+_Pavia University Multispectral Image in RGB_
+
+  </div>
+  <div style="margin-left: 10px;">
+
+![Pavia University Ground Truth](images/pavia_gt.png)
+
+_Pavia University Ground Truth_
+
+  </div>
+</div>
+
+As seen in the ground truth, there are some black pixels, which means they are not labeled. The classes present are the following:
+
+- <div style="display: flex; align-items: center">Asphalt: raspberry red <span style="display: inline-block; width: 15px; height: 15px; background-color: #e6194b; border-radius: 50%; margin-left: 8px"></span></div>
+- <div style="display: flex; align-items: center">Wasteland: green <span style="display: inline-block; width: 15px; height: 15px; background-color: #3cb44b; border-radius: 50%; margin-left: 8px"></span></div>
+- <div style="display: flex; align-items: center">Building 1: yellow <span style="display: inline-block; width: 15px; height: 15px; background-color: #ffe119; border-radius: 50%; margin-left: 8px"></span></div>
+- <div style="display: flex; align-items: center">Trees: blue <span style="display: inline-block; width: 15px; height: 15px; background-color: #0082c8; border-radius: 50%; margin-left: 8px"></span></div>
+- <div style="display: flex; align-items: center">Building 2: orange <span style="display: inline-block; width: 15px; height: 15px; background-color: #f58230; border-radius: 50%; margin-left: 8px"></span></div>
+- <div style="display: flex; align-items: center">Wasteland 2: purple <span style="display: inline-block; width: 15px; height: 15px; background-color: #911eb4; border-radius: 50%; margin-left: 8px"></span></div>
+- <div style="display: flex; align-items: center">Building 3: light blue <span style="display: inline-block; width: 15px; height: 15px; background-color: #46f0f0; border-radius: 50%; margin-left: 8px"></span></div>
+- <div style="display: flex; align-items: center">Car park: light purple <span style="display: inline-block; width: 15px; height: 15px; background-color: #f032e6; border-radius: 50%; margin-left: 8px"></span></div>
+- <div style="display: flex; align-items: center">Shadows: light yellow <span style="display: inline-block; width: 15px; height: 15px; background-color: #d2f53c; border-radius: 50%; margin-left: 8px"></span></div>
 
 ## Usage :wrench:
 
@@ -78,6 +111,16 @@ This script allows modifying the number of train steps, as well as the learning 
 Within the scripts directory, a script is also provided to perform training with the Pavia University multispectral image (`scripts/pavia_example.sh`). It is necessary to download the dataset files from [here](https://nubeusc-my.sharepoint.com/personal/anton_gomez_lopez_rai_usc_es/_layouts/15/onedrive.aspx?view=0&id=%2Fpersonal%2Fanton%5Fgomez%5Flopez%5Frai%5Fusc%5Fes%2FDocuments%2FTFG%2FStyleGAN2%2Dcondicionada%2Dclasificacion%2Fdata%2FPAVIA).
 
 To evaluate pixel-level accuracy, the `cstylegan2/test_D.py` Python script can be used.
+
+#### Example
+
+After cloning the repo, installing the dependencies, and downloading the Pavia University dataset, run the following command to train the network:
+
+```bash
+python cstylegan2/run.py data/PAVIA --channels=5 --num_train_steps=100 --evaluate_every=44 --save_every=44 --name=PAVIA
+```
+
+First, the dataset will be loaded, consisting of a high-resolution multispectral image of Pavia University. The network uses 32x32 pixel patches from the multispectral image, centered on the segments defined in the `pavia_university_seg_centers.raw` file.
 
 ## License :memo:
 
